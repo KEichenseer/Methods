@@ -1,6 +1,6 @@
 ######################################################
 ######################################################
-### A Metropolis-Hastings algorithm for Latitudinal 
+### A Metropolis-Hastings algorithm for Latitudinal
 ### Temperature Gradients
 ###
 ### by Kilian Eichenseer
@@ -19,7 +19,7 @@ gradient <- function(x, coeff, sdy) { # sigma is labelled "sdy"
   return(A + max(c(K-A,0))/((1+(nu*exp(Q*(x-M))))^(1/nu)) + rnorm(length(x),0,sdy))
 }
 
-loglik <- function(x, y,  coeff, sdy) { 
+loglik <- function(x, y,  coeff, sdy) {
   A = coeff[1]
   K = coeff[2]
   M = coeff[3]
@@ -71,26 +71,26 @@ run_MCMC <- function(x, y, coeff_inits, sdy_init, nIter, proposal_sd_init = rep(
   coeff_sd[1:3,] <- proposal_sd_init
   coeff_diff <- array(NA_real_,dim = c(nAdapt,5))
   allWeights <- exp((-(nAdapt-2)):0/500)
-  
+
   ### The MCMC loop
-  for (i in 2:nIter){ 
-    
+  for (i in 2:nIter){
+
     ## 1. Gibbs step to estimate sdy
     sdy[i] = sqrt(1/rgamma(1,shape_sdy,B_sdy+0.5*sum((y-gradient(x,coefficients[i-1,],0))^2)))
-    
+
     ## 2. Metropolis-Hastings step to estimate the regression coefficients
     proposal = MH_propose(coefficients[i-1,],coeff_sd[sd_i,]) # new proposed values
     #if(any(proposal[c(4,5)] <= 0)) HR = 0 else # Q and nu need to be >0
       # Hasting's ratio of the proposal
       HR = exp(logposterior(x = x, y = y, coeff = proposal, sdy = sdy[i]) -
                  logposterior(x = x, y = y, coeff = coefficients[i-1,], sdy = sdy[i])
-               
-               +sum(dnorm(coefficients[i-1,4:5]-proposal[4:5],coefficients[i-1,4:5],coeff_sd[sd_i,4:5]))
-               -sum(dnorm(proposal[4:5]-coefficients[i-1,4:5],coefficients[i-1,4:5],coeff_sd[sd_i,4:5]))
+
+               +sum(dlnorm(coefficients[i-1,4:5]-proposal[4:5],log(coefficients[i-1,4:5]),coeff_sd[sd_i,4:5]))
+               -sum(dlnorm(proposal[4:5]-coefficients[i-1,4:5],log(coefficients[i-1,4:5]),coeff_sd[sd_i,4:5]))
       )
-               
+
     # accept proposal with probability = min(HR,1)
-    if (runif(1) < HR){ 
+    if (runif(1) < HR){
       coefficients[i,] = proposal
       # if proposal is rejected, keep the values from the previous iteration
     }else{
@@ -98,17 +98,17 @@ run_MCMC <- function(x, y, coeff_inits, sdy_init, nIter, proposal_sd_init = rep(
     }
     # Adaptation of proposal SD
     if(i < nAdapt){
-    
+
     coeff_diff[i,1:3] <- coefficients[i,1:3]-coefficients[i-1,1:3]
     coeff_diff[i,4:5] <- log(coefficients[i,4:5])-log(coefficients[i-1,4:5])
-    
+
     if(i>=3) {
     weights = allWeights[(nAdapt-i+2):nAdapt-1]
     sum_weights = sum(weights)
     weighted_var_coeff <- apply(coeff_diff[2:i,], 2, function(f) weighted_var(
                             f, weights = weights, sum_weights = sum_weights))
-   
-    
+
+
     coeff_sd[i+1,] <- ifelse(weighted_var_coeff==0,
                            sqrt(coeff_sd[i,]^2/10),
                            sqrt(2.4^2 * weighted_var_coeff))
@@ -116,7 +116,7 @@ run_MCMC <- function(x, y, coeff_inits, sdy_init, nIter, proposal_sd_init = rep(
     sd_i <- i
     } # end of adapt
   } # end of the MCMC loop
-  
+
   ###  Function output
   output = list(data.frame(A = coefficients[,1],
                       K = coefficients[,2],
@@ -133,13 +133,13 @@ run_MCMC <- function(x, y, coeff_inits, sdy_init, nIter, proposal_sd_init = rep(
 set.seed(10)
 sample_lat <- runif(10,0,90)
 sample_data <- data.frame(
-  x = sample_lat, 
+  x = sample_lat,
   y = gradient(x = sample_lat, coeff = c(-2.2, 28, 39, 0.1, 1.2), sd = 2))
 
 
 ### Analysis
 nIter <- 50000
-system.time({m <- run_MCMC(x = sample_data$x, y = sample_data$y, 
+system.time({m <- run_MCMC(x = sample_data$x, y = sample_data$y,
               coeff_inits = c(10,20,30,0.4,0.4), sdy_init = 5, nIter = nIter,
               nAdapt = 5000)})
 matplot(log10(m[[2]]))
@@ -164,15 +164,15 @@ layout(matrix(c(1,2), nrow = 1, ncol = 2, byrow = TRUE))
 par(mar = c(4,4.25,1.25,0.75), las = 1, mgp = c(2.25,0.75,0), cex = 1.35)
 latitude <- seq(0,90,by=0.2)
 temperature <- gradient(x = latitude, coeff = c(-2.2, 28, 39, 0.1, 1.2), sd = 0)
-plot(latitude, temperature, type = "l", lwd = 3, ylim = c(-4.5,32), 
-     xlab = expression ("absolute latitude ("*degree*")"), yaxt = "n", 
+plot(latitude, temperature, type = "l", lwd = 3, ylim = c(-4.5,32),
+     xlab = expression ("absolute latitude ("*degree*")"), yaxt = "n",
      ylab = expression("temperature ("*degree~"C)"), yaxs = "i", xaxs = "i",
      xlim = c(0,90), main = "gradient", cex.main = 1)
 axis(2,seq(-5,30,5),c(NA,0,NA,10,NA,20,NA,30))
 
 
-plot(latitude, temperature, type = "l", lwd = 2, ylim = c(-4.5,32), 
-     xlab = expression ("absolute latitude ("*degree*")"), yaxt = "n", 
+plot(latitude, temperature, type = "l", lwd = 2, ylim = c(-4.5,32),
+     xlab = expression ("absolute latitude ("*degree*")"), yaxt = "n",
      ylab = expression("temperature ("*degree~"C)"), yaxs = "i", xaxs = "i",
      xlim = c(0,90), main = "sample data", lty= 2, cex.main = 1)
 points(sample_data$x, sample_data$y,  pch = 19, cex = 1.2, col = rgb(0,0,0,0.6), xpd = T)
@@ -195,33 +195,33 @@ names(facet.labs) <- c("A", "K", "M", "Q", "nu", "sdy")
 p1 <- ggplot(mm %>% filter(iteration %% 10 == 0)) + geom_line(aes(x = iteration, y = value),
                                                               colour = rgb(0,0.35,0.7,1))+
   facet_grid(variable ~ ., switch = "y",scales = "free_y",
-             labeller = labeller(variable = facet.labs)) + 
+             labeller = labeller(variable = facet.labs)) +
   theme(legend.position = "none")+
   theme_bw(base_size = 14)+
   theme(strip.text.y.left = element_text(angle = 0))+
   scale_y_continuous(position = "right")+
   ylab(NULL)+
-  ggtitle(expression("traceplot (showing every 10th"~"iteration)"))+ 
+  ggtitle(expression("traceplot (showing every 10th"~"iteration)"))+
   theme(plot.title = element_text(size = 13, face = "bold",hjust = 0.5),
         axis.title=element_text(size=13), axis.text.y=element_blank(),)
 
 
 p2 <- ggplot(mm %>% filter(iteration %% 10 == 0)) +
   geom_vline(aes(xintercept = trueval), colour = "black", size = 1,linetype = "solid")+
-  
-  stat_density(aes(x = value, y =..scaled..), 
+
+  stat_density(aes(x = value, y =..scaled..),
                fill = rgb(0,0.35,0.7,0.55), size = 1.5)+
-  facet_grid(variable ~ ., scales = "free_y")+ 
+  facet_grid(variable ~ ., scales = "free_y")+
   theme(legend.position = "none")+
   theme_bw(base_size = 14)+
   theme(strip.background = element_blank(),
-        strip.text.y = element_blank())+ 
+        strip.text.y = element_blank())+
   scale_y_continuous(position = "left",breaks = c(0,0.5,1))+
   scale_x_continuous(position = "top")+
   coord_flip()+
   ylab("scaled density")+
   xlab(NULL)+
-  ggtitle(expression("density"))+ 
+  ggtitle(expression("density"))+
   theme(plot.title = element_text(size = 13, face = "bold",hjust = 0.5),
         axis.title=element_text(size=13))
 
@@ -235,12 +235,12 @@ layout(matrix(c(1,2), nrow = 1, ncol = 2, byrow = TRUE))
 par(mar = c(4,4.25,1.25,0.75), las = 1, mgp = c(2.25,0.75,0), cex = 1.35)
 latitude <- seq(0,90,by=0.5)
 temperature <- gradient(x = latitude, coeff = c(-2.2, 28, 39, 0.1, 1.2), sdy = 0)
-plot(latitude, temperature, type = "l", lwd = 2, ylim = c(-4.5,32), 
-     xlab = expression ("absolute latitude ("*degree*")"), yaxt = "n", 
+plot(latitude, temperature, type = "l", lwd = 2, ylim = c(-4.5,32),
+     xlab = expression ("absolute latitude ("*degree*")"), yaxt = "n",
      ylab = expression("temperature ("*degree~"C)"), yaxs = "i", xaxs = "i", lty = 2,
      xlim = c(0,90), main = "8 draws from the posterior", cex.main = 1)
 points(sample_data$x, sample_data$y,  pch = 19, cex = 1.1, col = rgb(0,0,0,0.5), xpd = T)
-replicate(8, points(latitude, gradient(x = latitude, coeff = 
+replicate(8, points(latitude, gradient(x = latitude, coeff =
                            unlist(m[sample((burnin+1):nIter,1),1:5]), sdy = 0),
                            type = "l", col = rgb(0,0.35,0.7,0.33), lwd = 2))
 axis(2,seq(-5,30,5),c(NA,0,NA,10,NA,20,NA,30))
@@ -248,23 +248,23 @@ axis(2,seq(-5,30,5),c(NA,0,NA,10,NA,20,NA,30))
 # Calculate confidence intervals
 sample_it <- sample((burnin+1):nIter,1000)
 grad_025 <- sapply(1:length(latitude), function(f) quantile(
-  apply(m[sample_it,1:5],1,function(a) gradient(x=latitude[f], coeff =  a, sdy = 0)), 
+  apply(m[sample_it,1:5],1,function(a) gradient(x=latitude[f], coeff =  a, sdy = 0)),
   probs = 0.025))
 grad_975 <- sapply(1:length(latitude), function(f) quantile(
-  apply(m[sample_it,1:5],1,function(a) gradient(x=latitude[f], coeff =  a, sdy = 0)), 
+  apply(m[sample_it,1:5],1,function(a) gradient(x=latitude[f], coeff =  a, sdy = 0)),
   probs = 0.975))
 
 # Calculate confidence intervals
 sample_it <- sample((burnin+1):nIter,1000)
 grad_025 <- sapply(1:length(latitude), function(f) quantile(
-  apply(m[sample_it,1:5],1,function(a) gradient(x=latitude[f], coeff =  a, sdy = 0)), 
+  apply(m[sample_it,1:5],1,function(a) gradient(x=latitude[f], coeff =  a, sdy = 0)),
   probs = 0.025))
 grad_975 <- sapply(1:length(latitude), function(f) quantile(
-  apply(m[sample_it,1:5],1,function(a) gradient(x=latitude[f], coeff =  a, sdy = 0)), 
+  apply(m[sample_it,1:5],1,function(a) gradient(x=latitude[f], coeff =  a, sdy = 0)),
   probs = 0.975))
 
-plot(latitude, temperature, type = "n", lwd = 2, ylim = c(-4.5,32), 
-     xlab = expression ("absolute latitude ("*degree*")"), yaxt = "n", 
+plot(latitude, temperature, type = "n", lwd = 2, ylim = c(-4.5,32),
+     xlab = expression ("absolute latitude ("*degree*")"), yaxt = "n",
      ylab = expression("temperature ("*degree~"C)"), yaxs = "i", xaxs = "i", lty = 2,
      xlim = c(0,90), main = "posterior median and 95% CI", cex.main = 1)
 
@@ -276,7 +276,7 @@ error_polygon <- function(x,en,ep,color) {
 error_polygon(latitude,grad_025,grad_975,rgb(0,0.35,0.7,0.33))
 points(sample_data$x, sample_data$y,  pch = 19, cex = 1.1, col = rgb(0,0,0,0.5), xpd = T)
 
-points(latitude, gradient(x=latitude, coeff =  apply(m[sample_it,1:5],2,median), 
+points(latitude, gradient(x=latitude, coeff =  apply(m[sample_it,1:5],2,median),
                           sdy = 0), type = "l", lwd = 3, col = rgb(0,0.35,0.7,0.75))
 points(latitude, temperature, type = "l", lwd = 2, lty = 2)
 axis(2,seq(-5,30,5),c(NA,0,NA,10,NA,20,NA,30))
