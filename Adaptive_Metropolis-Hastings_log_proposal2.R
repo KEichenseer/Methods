@@ -131,7 +131,7 @@ run_MCMC <- function(x, y, coeff_inits, sdy_init, nIter, proposal_sd_init = rep(
 
 ### Data creation
 set.seed(10)
-sample_lat <- runif(10,0,90)
+sample_lat <- runif(15,0,90)
 sample_data <- data.frame(
   x = sample_lat,
   y = gradient(x = sample_lat, coeff = c(-2.2, 28, 39, 0.1, 1.2), sd = 2))
@@ -164,7 +164,7 @@ layout(matrix(c(1,2), nrow = 1, ncol = 2, byrow = TRUE))
 par(mar = c(4,4.25,1.25,0.75), las = 1, mgp = c(2.25,0.75,0), cex = 1.35)
 latitude <- seq(0,90,by=0.2)
 temperature <- gradient(x = latitude, coeff = c(-2.2, 28, 39, 0.1, 1.2), sd = 0)
-plot(latitude, temperature, type = "l", lwd = 3, ylim = c(-4.5,32),
+points(latitude, temperature, type = "l", lwd = 3, ylim = c(-4.5,32),
      xlab = expression ("absolute latitude ("*degree*")"), yaxt = "n",
      ylab = expression("temperature ("*degree~"C)"), yaxs = "i", xaxs = "i",
      xlim = c(0,90), main = "gradient", cex.main = 1)
