@@ -5,12 +5,23 @@ x1 <- runif(N,0,90)
 
 a = 0
 b = 1
-c = 4.5
+c = -1
 sdy = 0
 t1 <- 1/(0.1*b*(x1/10-c)^2+1) +a+ rnorm(N,0,sdy)
 
 plot(x1,t1)
 
+plot(seq(0,90,.2), dgamma(seq(0,90,.2),0.554,0.083))
+
+summary(glm(t1~x1, family = Gamma))
+
+glmGamma <- glm(t1 ~ x1, family = Gamma(link =
+                                                "identity"))
+                library(MASS)
+                myshape <- gamma.shape(glmGamma)
+                gampred <- predict(glmGamma , type = "response", se = TRUE,
+                                   dispersion = 1/myshape$alpha)
+                summary(glmGamma, dispersion = 1/myshape$alpha)
 
 #lm(t1 ~ a/(b*(x/10-c)^2+1))
 
@@ -76,20 +87,20 @@ run_MCMC <- function(x, y, coeff_inits, sdy_init, nIter, proposal_sd_init = rep(
   coeff_sd[1:2,] <- proposal_sd_init
   coeff_diff <- array(NA_real_,dim = c(nAdapt,3))
   allWeights <- exp((-(nAdapt-2)):0/1000)
-  
+
   ### The MCMC loop
   for (i in 2:nIter){
-    
+
     ## 1. Gibbs step to estimate sdy
     sdy[i] = sqrt(1/rgamma(1,shape_sdy,B_sdy+0.5*sum((y-gradient(x,coefficients[i-1,],0))^2)))
-    
+
     ## 2. Metropolis-Hastings step to estimate the regression coefficients
     proposal = MH_propose(coefficients[i-1,],coeff_sd[sd_it,]) # new proposed values
     if(any(proposal[c(1,2)] <= 0)) HR = 0 else # Q and nu need to be >0
       # Hasting's ratio of the proposal
       HR = exp(logposterior(x = x, y = y, coeff = proposal, sdy = sdy[i]) -
                  logposterior(x = x, y = y, coeff = coefficients[i-1,], sdy = sdy[i]))
-    
+
     #if(gradient(65, proposal,0) >10) HR = 0
     # accept proposal with probability = min(HR,1)
     if (runif(1) < HR){
@@ -100,15 +111,15 @@ run_MCMC <- function(x, y, coeff_inits, sdy_init, nIter, proposal_sd_init = rep(
     }
     # Adaptation of proposal SD
     if(i < nAdapt){
-      
+
       coeff_diff[i,] <- coefficients[i,]-coefficients[i-1,]
       if(i>=3) {
         weights = allWeights[(nAdapt-i+2):nAdapt-1]
         sum_weights = sum(weights)
         weighted_var_coeff <- apply(coeff_diff[2:i,], 2, function(f) weighted_var(
           f, weights = weights, sum_weights = sum_weights))
-        
-        
+
+
         coeff_sd[i+1,] <- ifelse(weighted_var_coeff==0,
                                  sqrt(coeff_sd[i,]^2/10),
                                  sqrt(2.4^2 * weighted_var_coeff))
@@ -116,7 +127,7 @@ run_MCMC <- function(x, y, coeff_inits, sdy_init, nIter, proposal_sd_init = rep(
       sd_it <- i
     }
   } # end of the MCMC loop
-  
+
   ###  Function output
   output = list(data.frame(a = coefficients[,1],
                            b = coefficients[,2],
@@ -206,7 +217,7 @@ p1 <- ggplot(mm %>% filter(iteration %% 10 == 0)) + geom_line(aes(x = iteration,
 
 p2 <- ggplot(mm %>% filter(iteration %% 10 == 0)) +
   #geom_vline(aes(xintercept = trueval), colour = "black", size = 1,linetype = "solid")+
-  
+
   stat_density(aes(x = value, y =..scaled..),
                fill = rgb(0,0.35,0.7,0.55), size = 1.5)+
   facet_grid(variable ~ ., scales = "free_y")+
@@ -234,12 +245,12 @@ layout(matrix(c(1,2), nrow = 1, ncol = 2, byrow = TRUE))
 par(mar = c(4,4.25,1.25,0.75), las = 1, mgp = c(2.25,0.75,0), cex = 1.35)
 latitude <- seq(0,90,by=0.5)
 diversity <- gradient(x = latitude, coeff = c(a, b, c), sdy = 0)
-plot(latitude, diversity, type = "l", lwd = 2, ylim = c(0,1.2), 
-     xlab = expression ("absolute latitude ("*degree*")"), 
+plot(latitude, diversity, type = "l", lwd = 2, ylim = c(0,1.2),
+     xlab = expression ("absolute latitude ("*degree*")"),
      ylab = "diversity", yaxs = "i", xaxs = "i", lty = 2,
      xlim = c(0,90), main = "8 draws from the posterior", cex.main = 1)
 points(sample_data$x, sample_data$y,  pch = 19, cex = 1.1, col = rgb(0,0,0,0.5), xpd = T)
-replicate(8, points(latitude, gradient(x = latitude, coeff = 
+replicate(8, points(latitude, gradient(x = latitude, coeff =
                                          unlist(m[sample((burnin+1):nIter,1),1:3]), sdy = 0),
                     type = "l", col = rgb(0,0.35,0.7,0.33), lwd = 2))
 #axis(2,seq(-5,30,5),c(NA,0,NA,10,NA,20,NA,30))
@@ -247,23 +258,23 @@ replicate(8, points(latitude, gradient(x = latitude, coeff =
 # Calculate confidence intervals
 sample_it <- sample((burnin+1):nIter,1000)
 grad_025 <- sapply(1:length(latitude), function(f) quantile(
-  apply(m[sample_it,1:3],1,function(a) gradient(x=latitude[f], coeff =  a, sdy = 0)), 
+  apply(m[sample_it,1:3],1,function(a) gradient(x=latitude[f], coeff =  a, sdy = 0)),
   probs = 0.025))
 grad_975 <- sapply(1:length(latitude), function(f) quantile(
-  apply(m[sample_it,1:3],1,function(a) gradient(x=latitude[f], coeff =  a, sdy = 0)), 
+  apply(m[sample_it,1:3],1,function(a) gradient(x=latitude[f], coeff =  a, sdy = 0)),
   probs = 0.975))
 
 # Calculate confidence intervals
 sample_it <- sample((burnin+1):nIter,1000)
 grad_025 <- sapply(1:length(latitude), function(f) quantile(
-  apply(m[sample_it,1:3],1,function(a) gradient(x=latitude[f], coeff =  a, sdy = 0)), 
+  apply(m[sample_it,1:3],1,function(a) gradient(x=latitude[f], coeff =  a, sdy = 0)),
   probs = 0.025))
 grad_975 <- sapply(1:length(latitude), function(f) quantile(
-  apply(m[sample_it,1:3],1,function(a) gradient(x=latitude[f], coeff =  a, sdy = 0)), 
+  apply(m[sample_it,1:3],1,function(a) gradient(x=latitude[f], coeff =  a, sdy = 0)),
   probs = 0.975))
 
-plot(latitude, diversity, type = "n", lwd = 2, ylim = c(0,1.2), 
-     xlab = expression ("absolute latitude ("*degree*")"), 
+plot(latitude, diversity, type = "n", lwd = 2, ylim = c(0,1.2),
+     xlab = expression ("absolute latitude ("*degree*")"),
      ylab = "diversity", yaxs = "i", xaxs = "i", lty = 2,
      xlim = c(0,90), main = "posterior median and 95% CI", cex.main = 1)
 
@@ -275,7 +286,7 @@ error_polygon <- function(x,en,ep,color) {
 error_polygon(latitude,grad_025,grad_975,rgb(0.65,0.79,0.87,1))
 points(sample_data$x, sample_data$y,  pch = 19, cex = 1.1, col = rgb(0,0,0,0.5), xpd = T)
 
-points(latitude, gradient(x=latitude, coeff =  apply(m[sample_it,1:3],2,median), 
+points(latitude, gradient(x=latitude, coeff =  apply(m[sample_it,1:3],2,median),
                           sdy = 0), type = "l", lwd = 3, col = rgb(0,0.35,0.7,0.75))
 points(latitude, diversity, type = "l", lwd = 2, lty = 2)
 #axis(2,seq(-5,30,5),c(NA,0,NA,10,NA,20,NA,30))
