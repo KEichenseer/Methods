@@ -66,7 +66,7 @@ run_MCMC <- function(x, y, coeff_inits, sdy_init, nIter, proposal_sd_init = rep(
   coeff_sd[1:2,] <- proposal_sd_init
   coeff_diff <- array(NA_real_,dim = c(nAdapt,5))
   allWeights <- exp((-(nAdapt-2)):0/500)
-
+  accept <- rep(NA,nIter)
   ### The MCMC loop
   for (i in 2:nIter){
 
@@ -83,9 +83,11 @@ run_MCMC <- function(x, y, coeff_inits, sdy_init, nIter, proposal_sd_init = rep(
     #if(gradient(65, proposal,0) >10) HR = 0
     # accept proposal with probability = min(HR,1)
     if (runif(1) < HR){
+      accept[i] <- 1
       coefficients[i,] = proposal
       # if proposal is rejected, keep the values from the previous iteration
     }else{
+      accept[i] <- 0
       coefficients[i,] = coefficients[i-1,]
     }
     # Adaptation of proposal SD
@@ -114,7 +116,8 @@ run_MCMC <- function(x, y, coeff_inits, sdy_init, nIter, proposal_sd_init = rep(
                       Q = coefficients[,4],
                       nu = coefficients[,5],
                       sdy = sdy),
-                coeff_sd)
+                coeff_sd,
+                accept)
   return(output)
 }
 # for plotting the 95 % CI shading
@@ -139,7 +142,7 @@ system.time({m <- run_MCMC(x = sample_data$x, y = sample_data$y,
               coeff_inits = c(10,20,30,0.4,0.4), sdy_init = 5, nIter = nIter,
               nAdapt = 5000)})
 #matplot(log10(m[[2]]))
-
+table(m[[3]])/200000
 m[[2]][5000,]
 ######################################################
 ######################################################
