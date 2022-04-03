@@ -40,7 +40,7 @@ logposterior <- function(x, y, coeff, sdy){
 }
 
 MH_propose <- function(coeff, proposal_sd){
-  return(rnorm(4,mean = coeff, sd= c(.5,.5,.5,0.01)))
+  return(rnorm(4,mean = coeff, sd= proposal_sd))
 }
 
 # Main MCMCM function
@@ -63,7 +63,7 @@ run_MCMC <- function(x, y, coeff_inits, sdy_init, nIter){
       1,shape_sdy,B_sdy+0.5*sum((y-gradient(x,coefficients[i-1,],0))^2)))
     
     ## 2. Metropolis-Hastings step to estimate the regression coefficients
-    proposal = MH_propose(coefficients[i-1,]) # new proposed values
+    proposal = MH_propose(coefficients[i-1,],proposal_sd =  c(.5,.5,.5,0.01)) # new proposed values
     if(any(proposal[4] <= 0)) HR = 0 else # Q needs to be >0
       # Hastings ratio of the proposal
       HR = exp(logposterior(x = x, y = y, coeff = proposal, sdy = sdy[i]) -
