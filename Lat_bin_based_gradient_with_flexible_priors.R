@@ -12,7 +12,7 @@ loglik <- function(x, ymean, yest, sdyest, coeff, sdy) {
   M = coeff[3]
   Q = coeff[4]
 
-  ll1 <- sum(dnorm(ymean, yest, sdyest,log=TRUE))
+  ll1 <- sum(dnorm(ymean, yest, sdyest,log=TRUE),na.rm=T)
   pred = A + max(c(K-A,0))/((1+(exp(Q*(x-M)))))
   ll2 <- sum(dnorm(yest, mean = pred, sd = sdy, log = TRUE))
   return(ll1+ll2)
@@ -24,7 +24,9 @@ logprior <- function(coeff, yest) {
     dunif(coeff[2], -4, 40, log = TRUE),
     dnorm(coeff[3], 45, 10, log = TRUE),
     dlnorm(coeff[4], -2, 1, log = TRUE),
-    sum(sapply(1:nbin, function(b) dunif(yest[b], -4, 40, log = TRUE))))))
+    sum(sapply(c(1:4,6), function(b) dunif(yest[b], -4, 40, log = TRUE))),
+    dunif(yest[5], -4, 40, log = TRUE)+
+    dunif(yest[5], 18, 35, log = TRUE))))
 }
 
 logposterior <- function(x, ymean, yest, sdyest, coeff, sdy){
@@ -59,8 +61,9 @@ run_MCMC <- function(nIter, x, yobs, coeff_inits, sdy_init, yest_inits, sdyest_i
   A_sdyest = 3 # parameter for the prior on the inverse gamma distribution of sdy
   B_sdyest = 1 # parameter for the prior on the inverse gamma distribution of sdy
   nest = sapply(yobs,length)
-  shape_sdyest =  A_sdyest+nest/2 # shape parameter for the inverse gamma
-
+  nest[which(is.na(yobs))] = NA
+  shape_sdyest =  A_sdyest+(nest-1)/2 # shape parameter for the inverse gamma
+                  ### n-1?!
   ymean = sapply(yobs,mean)
   yvar = sapply(yobs,var)
 
@@ -77,7 +80,8 @@ run_MCMC <- function(nIter, x, yobs, coeff_inits, sdy_init, yest_inits, sdyest_i
    # for(j in 1:nbin) sdyest[i,j] = sqrt(1/rgamma(
    #    1,shape_sdyest[j],B_sdyest+0.5*sum((yobs[[j]]-yestimate[i-1,j])^2)))
     for(j in 1:nbin) sdyest[i,j] = sqrt(1/rgamma(
-          1,shape_sdyest[j],B_sdyest+0.5*sum((yobs[[j]]-yestimate[i-1,j])^2)))
+          1,max(c(shape_sdyest[j],A_sdyest),na.rm=T),
+            max(c(B_sdyest+0.5*sum((yobs[[j]]-yestimate[i-1,j])^2), B_sdyest),na.rm=T)))
     #https://stats.stackexchange.com/questions/525674/gibbs-sampler-for-normal-and-inverse-gamma-distribution-in-r
     # https://stats.stackexchange.com/questions/266665/gibbs-sampler-examples-in-r
 
@@ -88,8 +92,10 @@ run_MCMC <- function(nIter, x, yobs, coeff_inits, sdy_init, yest_inits, sdyest_i
     proposal_coeff = MH_propose_coeff(coefficients[i-1,],prop_sd =  prop_sd_coeff) # new proposed values
     if(any(proposal_coeff[4] <= 0)) HR = 0 else # Q needs to be >0
       # Hastings ratio of the proposal
-      logpostold = logposterior(x = x, ymean = ymean, yest = yestimate[i-1,],  sdyest = sdyest[i,], coeff = coefficients[i-1,], sdy = sdy[i])
-      logpostnew = logposterior(x = x, ymean = ymean, yest = proposal_yest, sdyest = sdyest[i,], coeff = proposal_coeff, sdy = sdy[i])
+      logpostold = logposterior(x = x, ymean = ymean, yest = yestimate[i-1,],  
+                                sdyest = sdyest[i,], coeff = coefficients[i-1,], sdy = sdy[i])
+      logpostnew = logposterior(x = x, ymean = ymean, yest = proposal_yest, 
+                                sdyest = sdyest[i,], coeff = proposal_coeff, sdy = sdy[i])
       HR = exp(logpostnew -
                  logpostold)
     # accept proposal with probability = min(HR,1)
@@ -119,36 +125,36 @@ run_MCMC <- function(nIter, x, yobs, coeff_inits, sdy_init, yest_inits, sdyest_i
 }
 
 
-nbin = 7
-npb = 3
-prop_sd_yest <- matrix(0.9,nrow = nbin, ncol = nbin)
+nbin = 6
+prop_sd_yest <- matrix(0.01,nrow = nbin, ncol = nbin)
 diag(prop_sd_yest) <- 1
 prop_sd_coeff <- c(.5,.5,.5,0.01)
 
 coeff_inits = c(0,30,45,0.1)
-yest_inits = c(30,29,28,10,9,8,7) #c(30,25,20,15,10,0,0)
-sdyest_inits = rep(2,7)
+yest_inits = c(30,30,30,30,30,0) #c(30,25,20,15,10,0,0)
+sdyest_inits = rep(2,nbin)
 
-x <- seq(10,70,10)
-npb <- c(3,3,3,3,3,3,12)
-ym <- c(30,27,20,12,10,14,4)
+x <- seq(10,60,10)
+npb <- c(2,1,5,3,0,3)
+ym <- c(32,30,16,16,10,8)
 y <- lapply(1:nbin, function(x) rnorm(npb[x],ym[x],2))
+y[which(npb==0)] <- NA
 plot(0,0,xlim = c(10,70), ylim = c(-1,35))
-for(i in 1:nbin) points(rep(x[i],npb[i]),y[[i]])
+for(i in (1:nbin)[-5]) points(rep(x[i],npb[i]),y[[i]])
 
-m2 <- run_MCMC(nIter = 50000, x = x, yobs = y, coeff_inits = coeff_inits,
+m7 <- run_MCMC(nIter = 50000, x = x, yobs = y, coeff_inits = coeff_inits,
                      sdy_init = 1, yest_inits = yest_inits,
                      sdyest_inits = sdyest_inits,
                      prop_sd_coeff, prop_sd_yest,
-                      nbin = 7)
-mn <- m1
-ind <- seq(1,2000,1)
-plot(ind,mn[[1]][ind,5], type = "l")
-plot(ind,mn[[2]][ind,3], type = "l")
+                      nbin = nbin)
+mn <- m5
+ind <- seq(1,50000,10)
+plot(ind,mn[[1]][ind,1], type = "l")
+plot(ind,mn[[2]][ind,2], type = "l")
 
-plot(ind,m[[3]][ind,7], type = "l")
+plot(ind,mn[[2]][ind,5], type = "l")
 
-plot(m[[1]][ind,1],m[[1]][ind,2])
+plot(mn[[2]][ind,1],mn[[2]][ind,2])
 abline(a=0,b=1)
 plot(m[[1]][ind,2], type = "l")
 
@@ -159,7 +165,7 @@ hist(rnorm(10000,median(m[[2]][,ind]),median(m[[3]][,ind])),100)
 abline(v = y[[ind]], lwd = 2, col = "turquoise")
 
 burnin = 20000+1
-nIter = 100000
+nIter = 50000
 plot(seq(10,70,0.1), gradient(seq(10,70,0.1), apply(m[[1]][burnin:nIter,1:4],2,median), 0), ylim = c(-1,35))
 points(x,apply(m[[2]][burnin:nIter,],2,median), col = "red", pch = 19)
 sapply(1:nbin, function(a) points(c(x[a],x[a]),c(median(m[[2]][burnin:nIter,a])+c(-2,2)*median(m[[3]][burnin:nIter,a])), type = "l", col= "red"))
@@ -183,16 +189,30 @@ for(i in 1:nbin) points(rep(x[i],7),y[[i]], col = rgb(0,0.8,0.6,0.7))
 
 burnin = 20000+1
 nIter = 50000
-mn <- m2
-plot(seq(10,70,0.1), gradient(seq(10,70,0.1), apply(mn[[1]][burnin:nIter,1:4],2,median), 0), ylim = c(-1,35))
-points(x,apply(mn[[2]][burnin:nIter,],2,median), col = "orange", pch = 19)
-sapply(1:nbin, function(a) points(c(x[a],x[a]),quantile(mn[[2]][burnin:nIter,a], probs = c(0.025,0.975)), type = "l", col= rgb(.8,.8,0,0.5), lwd =3))
-sapply(1:nbin, function(a) points(c(x[a],x[a]),c(median(mn[[2]][burnin:nIter,a])+c(-2,2)*median(mn[[3]][burnin:nIter,a])), type = "l", col= "red"))
+mn <- m7
+plot(seq(0,90,0.1), gradient(seq(0,90,0.1), apply(mn[[1]][burnin:nIter,1:4],2,median), 0), 
+     ylim = c(-1,35), type = "l", lwd = 3)
+### Calculate confidence intervals
+sample_it <- sample((burnin+1):nIter,2500)
+grad_025 <- sapply(1:length(latitude), function(f) quantile(apply(mn[[1]][sample_it,1:4],1,function(a) gradient(x=latitude[f], coeff =  a, sdy = 0)), probs = 0.025))
+grad_975 <- sapply(1:length(latitude), function(f) quantile(apply(mn[[1]][sample_it,1:4],1,function(a) gradient(x=latitude[f], coeff =  a, sdy = 0)), probs = 0.975))
+error_polygon(latitude,grad_025,grad_975,rgb(0,0,0,0.2))
 
-for(i in 1:nbin) points(rep(x[i],npb[i]),y[[i]], col = rgb(0,0.8,0.6,0.7))
+lines(c(50,50),c(18,35), lwd = 6, col = rgb(0,0.9,0,0.5))
+points(x,apply(mn[[2]][burnin:nIter,],2,median), col = "red", pch = 19, cex = 1.15)
+sapply(1:nbin, function(a) points(c(x[a],x[a]),quantile(mn[[2]][burnin:nIter,a], probs = c(0.025,0.975)), type = "l", col= rgb(1,0,0,1), lwd =2))
+#sapply(1:nbin, function(a) points(c(x[a],x[a]),c(median(mn[[2]][burnin:nIter,a])+c(-2,2)*median(mn[[3]][burnin:nIter,a])), type = "l", col= "red"))
+
+for(i in (1:nbin)[-5]) points(rep(x[i],npb[i])+rnorm(npb[i],0,0.25),y[[i]], col = rgb(0,0.8,0.6,0.5), pch = 19)
 
 
-x1 <- seq(-1,4,0.01)
-plot(x1,dnorm(x1,0,1))#*dnorm(x1,1,1))
-points(x1,dnorm(x1,2,1), col = "dodgerblue")
-points(x1,dnorm(x1,0,1)*dnorm(x1,2,1)*4, col = "red")
+# function for plotting the 95 % CI shading
+error_polygon <- function(x,en,ep,color) {
+  polygon( c(x[1], x, x[length(x)], x[length(x)], rev(x), x[1]),
+           c((ep)[1],ep, (ep)[length(ep)], (en)[length(en)], rev(en), (en)[1]),
+           border = NA, col = color)
+}
+#
+
+
+###  Something is wrong with the yestimate: they move more with larger sample size. fix!
