@@ -26,6 +26,7 @@ logprior <- function(coeff, yest, prior_df) {
     dlnorm(coeff[4], -2, 1, log = TRUE),
     sum(sapply(1:nbin, function(b) dunif(yest[b], -4, 40, log = TRUE)+
                  extra_priors[[b]](yest[b], prior_df[b,2],prior_df[b,3],log=TRUE))))))
+  # replace with loop and vectors rather than data frame (prior_df)
 }
 # comment: The "extra prior" could also be in the likelihood, right? Treating them as data, so to speak
 # on this note, uncertainties could be incorporated into individual data points
@@ -63,7 +64,7 @@ run_MCMC <- function(nIter, x, yobs, prior_df, coeff_inits, sdy_init, yest_inits
 
 #### Investigate these: Need to be broad for single obser
   A_sdyest = 1 # parameter for the prior on the inverse gamma distribution of sdyest
-  B_sdyest = 30 # parameter for the prior on the inverse gamma distribution of sdyest
+  B_sdyest = 1 # parameter for the prior on the inverse gamma distribution of sdyest
 ####
   nest = sapply(yobs,length)
   nest[which(is.na(yobs))] = NA
@@ -92,7 +93,7 @@ run_MCMC <- function(nIter, x, yobs, prior_df, coeff_inits, sdy_init, yest_inits
    #    1,shape_sdyest[j],B_sdyest+0.5*sum((yobs[[j]]-yestimate[i-1,j])^2)))
     for(j in 1:nbin) sdyest[i,j] = sqrt(1/rgamma(
           1,max(c(shape_sdyest[j],A_sdyest),na.rm=T),
-            max(c(B_sdyest+0.5*sum((yobs[[j]]-yestimate[i-1,j])^2), B_sdyest),na.rm=T)))
+            max(c(B_sdyest+0.5*(ymean[j]-yestimate[i-1,j])^2, B_sdyest),na.rm=T)))
     #https://stats.stackexchange.com/questions/525674/gibbs-sampler-for-normal-and-inverse-gamma-distribution-in-r
     # https://stats.stackexchange.com/questions/266665/gibbs-sampler-examples-in-r
 
