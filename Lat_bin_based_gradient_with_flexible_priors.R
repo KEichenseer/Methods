@@ -157,7 +157,7 @@ sdyest_inits = rep(2,nbin)
 
 x <- c(seq(10,50,10),50)
 npb <- c(1,5,4,3,1,0)
-ym <- c(30,30,20,15,18,8)
+ym <- c(26,30,20,15,22,8)
 y <- lapply(1:nbin, function(x) rnorm(npb[x],ym[x],2))
 y[which(npb==0)] <- NA
 plot(0,0,xlim = c(10,70), ylim = c(-1,35))
@@ -173,7 +173,7 @@ prior_df[6,2:3] <- c(5,3)
 #extra_priors(1,1,prior_df)
 
 
-m41 <-  run_MCMC(nIter = 100000, x = x, yobs = y, prior_df = prior_df,
+m42 <-  run_MCMC(nIter = 100000, x = x, yobs = y, prior_df = prior_df,
                      coeff_inits = coeff_inits,
                      sdy_init = 1, yest_inits = yest_inits,
                      sdyest_inits = sdyest_inits,
@@ -221,7 +221,7 @@ for(i in 1:nbin) points(rep(x[i],7),y[[i]], col = rgb(0,0.8,0.6,0.7))
 
 burnin = 25000+1
 nIter = 100000
-mn <- m41
+mn <- m42
 plot(seq(0,90,0.1), gradient(seq(0,90,0.1), apply(mn[[1]][burnin:nIter,1:4],2,median), 0),
      ylim = c(-1,35), type = "l", lwd = 3, ylab = "Temperature", xlab = "Latitude")
 ### Calculate confidence intervals
