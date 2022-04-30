@@ -73,7 +73,7 @@ run_MCMC <- function(nIter, x, yobs, prior_df, coeff_inits, sdy_init, yest_inits
 
 
   #### Investigate these: Need to be broad for single obser
-  A_sdyest = 1 # parameter for the prior on the inverse gamma distribution of sdyest
+  A_sdyest = 3 # parameter for the prior on the inverse gamma distribution of sdyest
   B_sdyest = 1 # parameter for the prior on the inverse gamma distribution of sdyest
   ####
   yn = sapply(yobs,length)
@@ -89,7 +89,7 @@ run_MCMC <- function(nIter, x, yobs, prior_df, coeff_inits, sdy_init, yest_inits
 
 
   ### The MCMC loop
-  for (i in 2:25){
+  for (i in 2:nIter){
     pred = gradient(x,coefficients[i-1,],0)
 
     ## 1. Gibbs step to estimate sdy
@@ -99,8 +99,8 @@ run_MCMC <- function(nIter, x, yobs, prior_df, coeff_inits, sdy_init, yest_inits
 
     ## 2.a Gibbs step to estimate yestimate
     yestimate[i,] = truncnorm::rtruncnorm(1,
-                                          mean =  1/(1/yvar[] + yn[]/sdyest[i-1,]^2)*(ymean[]/yvar[] + sumobs/sdyest[i-1,]^2),
-                                          sd =  (1/yvar[] + yn[]/sdyest[i-1,]^2)^-1,a = -4, b = 40)
+                                          mean =  pred, #1/(1/yvar[] + yn[]/sdyest[i-1,]^2)*(ymean[]/yvar[] + sumobs/sdyest[i-1,]^2)
+                                          sd =  sdy[i],a = -4, b = 40) #(1/yvar[] + yn[]/sdyest[i-1,]^2)^-1
 
     #mu[i,] = rnorm(1,
     #                                      mean =  1/(1/sdy[i]^2 + yn/sdyest[i-1,]^2)*(pred/sdy[i] + sum(yestimate[i,])/sdy[i-1,]^2),
@@ -148,15 +148,15 @@ run_MCMC <- function(nIter, x, yobs, prior_df, coeff_inits, sdy_init, yest_inits
       logpost[i] = logpostold
 
     }
-    if(accept == 0) main = "rejected" else main = "accepted"
-      plot(seq(0,90,0.1), gradient(seq(0,90,0.1), coefficients[i-1,],0), main = main,
-           ylim = c(-1,40), type = "l", lwd = 3, ylab = "Temperature", xlab = "Latitude")
-      points(seq(0,90,0.1), gradient(seq(0,90,0.1), proposal_coeff,0),
-             type = "l", lwd = 3, lty = 3, col = "red")
-
-      points(x,  yestimate[i,], pch = 19)
-      points(x,  yestimate[i-1,], pch = 1)
-      points(x,ymean,col = "dodgerblue", pch = 17)
+    #if(accept == 0) main = "rejected" else main = "accepted"
+    #  plot(seq(0,90,0.1), gradient(seq(0,90,0.1), coefficients[i-1,],0), main = main,
+    #       ylim = c(-1,40), type = "l", lwd = 3, ylab = "Temperature", xlab = "Latitude")
+    #  points(seq(0,90,0.1), gradient(seq(0,90,0.1), proposal_coeff,0),
+     #        type = "l", lwd = 3, lty = 3, col = "red")
+#
+    #  points(x,  yestimate[i,], pch = 19)
+    #  points(x,  yestimate[i-1,], pch = 1)
+     # points(x,ymean,col = "dodgerblue", pch = 17)
 
   } # end of the MCMC loop
 
