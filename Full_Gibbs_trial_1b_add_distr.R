@@ -34,7 +34,7 @@ loglik <- function(x, ymean, yest, sdyest, coeff, sdy) {
 #    dlnorm(coeff[4], -2.2, 0.8, log = TRUE))))
 #}
 
-logprior <- function(coeff, yest) {
+logprior <- function(coeff) {
   coeff = unlist(coeff)
   return(sum(c(
     dunif(coeff[1], -4, coeff[2], log = TRUE),
@@ -45,7 +45,7 @@ logprior <- function(coeff, yest) {
 
 
 logposterior <- function(x, ymean, yest, sdyest, coeff, sdy){
-  return (loglik(x, ymean, yest, sdyest, coeff, sdy) + logprior(coeff,yest))
+  return (loglik(x, ymean, yest, sdyest, coeff, sdy) + logprior(coeff))
 }
 
 MH_propose_coeff <- function(coeff, prop_sd_coeff){
@@ -202,14 +202,15 @@ run_MCMC <- function(nIter, x, yobs, yd_mu, yd_sd, coeff_inits, sdy_init, yest_i
 }
 
 
-nbin = 7
-prop_sd_yest <- matrix(0.01,nrow = nbin, ncol = nbin)
-diag(prop_sd_yest) <- 0.5
+nbin = 4
+ndbin = 3
+#prop_sd_yest <- matrix(0.01,nrow = nbin, ncol = nbin)
+#diag(prop_sd_yest) <- 0.5
 prop_sd_coeff <- c(1,1,1,0.1)
 
 coeff_inits = c(0,30,45,0.1)
-yest_inits = rep(25,nbin) #c(30,25,20,15,10,0,0)
-sdyest_inits = rep(2,nbin-1)
+yest_inits = rep(25,nbin+ndbin) #c(30,25,20,15,10,0,0)
+sdyest_inits = rep(2,nbin)
 
 x <- c(seq(10,60,10))
 npb <- c(7,7,7,3,3,3)
@@ -217,37 +218,40 @@ ym <- c(32,30,24,17,24,10)
 ysd <- c(1,1,3,2,4,2)
 
 
-x <- c(seq(10,70,10))
-npb <- c(5,5,5,5,5,3)
-ym <- (c(33,30,25,18,15,25))
-ysd <- c(1,1,1,1,1,3)
+nbin = 4
+x <- c(30,40,50,60,10,20,70)
+npb <- c(5,5,5,3)
+ym <- (c(25,18,15,25))
+ysd <- c(1,1,1,5)
 y <- lapply(1:nbin, function(x) rnorm(npb[x],ym[x],ysd[x]))
 y[which(npb==0)] <- NA
 plot(0,0,xlim = c(0,90), ylim = c(-1,40), type = "n")
 for(i in (1:nbin)) if(npb[i] !=0)points(rep(x[i],npb[i]),y[[i]])
 
-yd_mu <- 10
-yd_sd <- 2
+yd_mu <- c(33,30,10)
+yd_sd <- c(2,1,2)
 
-nIter = 200000
+nIter = 50000
 sdy_init = 1
 yobs = y
-system.time({ m1 <-  run_MCMC(nIter = nIter, x = x, yobs = y, yd_mu = yd_mu, yd_sd = yd_sd,
+system.time({ m2 <-  run_MCMC(nIter = nIter, x = x, yobs = y, yd_mu = yd_mu, yd_sd = yd_sd,
                  coeff_inits = coeff_inits,
                  sdy_init = sdy_init, yest_inits = yest_inits,
                  sdyest_inits = sdyest_inits,
                  prop_sd_coeff=prop_sd_coeff, prop_sd_yest=prop_sd_yest)
 })
-burnin = 50000+1
+burnin = 25000+1
 #nIter = 30000
-mn <- m1
-plot(seq(0,90,0.1), gradient(seq(0,90,0.1), apply(mn[[1]][burnin:nIter,1:4],2,median), 0),
-     ylim = c(-1,40), type = "l", lwd = 3, ylab = "Temperature", xlab = "Latitude")
-### Calculate confidence intervals
+mn <- m2
+
 latitude <- 0:90
 sample_it <- sample((burnin+1):nIter,2000)
 grad_025 <- sapply(1:length(latitude), function(f) quantile(apply(mn[[1]][sample_it,1:4],1,function(a) gradient(x=latitude[f], coeff =  a, sdy = 0)), probs = 0.025))
 grad_975 <- sapply(1:length(latitude), function(f) quantile(apply(mn[[1]][sample_it,1:4],1,function(a) gradient(x=latitude[f], coeff =  a, sdy = 0)), probs = 0.975))
+
+plot(seq(0,90,0.1), gradient(seq(0,90,0.1), apply(mn[[1]][burnin:nIter,1:4],2,median), 0),
+     ylim = c(-1,40), type = "l", lwd = 3, ylab = "Temperature", xlab = "Latitude")
+### Calculate confidence intervals
 error_polygon(latitude,grad_025,grad_975,rgb(0,0,0,0.15))
 
 for(i in 1:5) points(latitude,gradient(latitude,unlist(mn[[1]][sample(burnin:nIter,1),1:4]),0), type = "l", lwd = 2, col = rgb(0,0,0,0.3))
@@ -257,20 +261,22 @@ for(i in 1:5) points(latitude,gradient(latitude,unlist(mn[[1]][sample(burnin:nIt
 #                                                                                            at = x[i], maxwidth = 5, side = "second",
 #                                                                what = c(0,1,0,0), col = rgb(0,0.7,0.7,0.5), border = NA)}}
 
-beanplot::beanplot(rnorm(1000,yd_mu,yd_sd), add = T,
-                   at = x[7], maxwidth = 5, side = "second",
+for(d in 1:3) beanplot::beanplot(rnorm(2000,yd_mu[d],yd_sd[d]), add = T,
+                   at = x[c(5:7)[d]], maxwidth = 5, side = "second",
                    what = c(0,1,0,0), col = rgb(0,0.7,0.7,0.5), border = NA)
-offset <- rnorm(nbin,0,0.05)
-points(x+offset,apply(mn[[2]][burnin:nIter,],2,median), col = "red", pch = 19, cex = 1.25)
-sapply(1:nbin, function(a) points(c(x[a]+offset[a],x[a]+offset[a]),quantile(mn[[2]][burnin:nIter,a], probs = c(0.25,0.75)), type = "l", col= rgb(1,0,0,0.5), lwd =5))
-sapply(1:nbin, function(a) points(c(x[a]+offset[a],x[a]+offset[a]),quantile(mn[[2]][burnin:nIter,a], probs = c(0.125,0.875)), type = "l", col= rgb(1,0,0,0.5), lwd =3))
-sapply(1:nbin, function(a) points(c(x[a]+offset[a],x[a]+offset[a]),quantile(mn[[2]][burnin:nIter,a], probs = c(0.025,0.975)), type = "l", col= rgb(1,0,0,0.5), lwd =1))
+
+
+offset <- rnorm(7,0,0.05)
+points(x[1:7]+offset,apply(mn[[2]][burnin:nIter,1:7],2,mean), col = "red", pch = 19, cex = 1.25)
+sapply(1:7, function(a) points(c(x[a]+offset[a],x[a]+offset[a]),quantile(mn[[2]][burnin:nIter,a], probs = c(0.25,0.75)), type = "l", col= rgb(1,0,0,0.5), lwd =5))
+sapply(1:7, function(a) points(c(x[a]+offset[a],x[a]+offset[a]),quantile(mn[[2]][burnin:nIter,a], probs = c(0.125,0.875)), type = "l", col= rgb(1,0,0,0.5), lwd =3))
+sapply(1:7, function(a) points(c(x[a]+offset[a],x[a]+offset[a]),quantile(mn[[2]][burnin:nIter,a], probs = c(0.025,0.975)), type = "l", col= rgb(1,0,0,0.5), lwd =1))
 
 #sapply(1:nbin, function(a) points(c(x[a],x[a]),c(median(mn[[2]][burnin:nIter,a])+c(-2,2)*median(mn[[3]][burnin:nIter,a])), type = "l", col= "red"))
 
 for(i in (1:nbin)) if(npb[i] !=0) points(rep(x[i],npb[i])+rnorm(npb[i],0,0.25),y[[i]], col = rgb(0,0.3,1,0.55), pch = 17)
 
-points(x,sapply(y,mean), col = rgb(0,.85,.425,.75), pch = 4, lwd = 2)
+points(x[1:4],sapply(y,mean), col = rgb(0,.85,.425,.75), pch = 4, lwd = 2)
 
 
 
