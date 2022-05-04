@@ -15,24 +15,15 @@ loglik <- function(x, ymean, yest, sdyest, coeff, sdy) {
   M = coeff[3]
   Q = coeff[4]
   # likelihood for yest - oxygen isotope data normal distributed
-  ll1a <- sum(dnorm(yest, ymean, sdyest,log=TRUE),na.rm=T)
+  ll1 <- sum(dnorm(yest, ymean, sdyest,log=TRUE),na.rm=T)
   # likelihood for yest - other PDFs
   # likelihood for
   #ll1b <- sum(dunif(yest[1],20,40, log = TRUE),
   #            dnorm(yest[6],6,5, log = TRUE))
   pred = A + max(c(K-A,0))/((1+(exp(Q*(x-M)))))
   ll2 <- sum(dnorm(yest, mean = pred, sd = sdy, log = TRUE))
-  return(c(ll2+ll1a))
+  return(c(ll2+ll1))
 }
-
-#logprior <- function(coeff, yest) {
-# coeff = unlist(coeff)
-#  return(sum(c(
-#    dunif(coeff[1], -4, 40, log = TRUE),
-#    dunif(coeff[2], -4, 40, log = TRUE),
-#    dnorm(coeff[3], 45, 10, log = TRUE),
-#    dlnorm(coeff[4], -2.2, 0.8, log = TRUE))))
-#}
 
 logprior <- function(coeff) {
   coeff = unlist(coeff)
@@ -42,7 +33,6 @@ logprior <- function(coeff) {
     dnorm(coeff[3], 45, 10, log = TRUE),
     dlnorm(coeff[4], -2.2, 0.8, log = TRUE))))
 }
-
 
 logposterior <- function(x, ymean, yest, sdyest, coeff, sdy){
   return (loglik(x, ymean, yest, sdyest, coeff, sdy) + logprior(coeff))
@@ -64,7 +54,7 @@ error_polygon <- function(x,en,ep,color) {
 #
 # Main MCMCM function
 run_MCMC <- function(nIter, x, yobs, yd_mu, yd_sd, coeff_inits, sdy_init, yest_inits, sdyest_inits,
-                     prop_sd_coeff, prop_sd_yest, nbin){
+                     prop_sd_coeff, prop_sd_yest, quiet = FALSE){
   ### Initialisation
   coefficients = array(dim = c(nIter,4)) # set up array to store coefficients
   coefficients[1,] = coeff_inits # initialise coefficients
@@ -106,9 +96,13 @@ run_MCMC <- function(nIter, x, yobs, yd_mu, yd_sd, coeff_inits, sdy_init, yest_i
 
   logpost = rep(NA,nIter)
 
-
+  # start progress bar
+  if (!quiet) cli::cli_progress_bar('Sampling', total = nIter)
   ### The MCMC loop
   for (i in 2:nIter){
+    # update progress bar
+    #if (!quiet) cli::cli_progress_update(set = i, status = paste0('iteration ', i))
+
     pred = gradient(x,coefficients[i-1,],0)
 
     ### 1. Gibbs steps for data that have multiple points (estimate global mean and sd)
@@ -206,7 +200,7 @@ nbin = 4
 ndbin = 3
 #prop_sd_yest <- matrix(0.01,nrow = nbin, ncol = nbin)
 #diag(prop_sd_yest) <- 0.5
-prop_sd_coeff <- c(1,1,1,0.1)
+prop_sd_coeff <- c(3,3,3,0.1)
 
 coeff_inits = c(0,30,45,0.1)
 yest_inits = rep(25,nbin+ndbin) #c(30,25,20,15,10,0,0)
@@ -234,7 +228,7 @@ yd_sd <- c(2,1,2)
 nIter = 50000
 sdy_init = 1
 yobs = y
-system.time({ m2 <-  run_MCMC(nIter = nIter, x = x, yobs = y, yd_mu = yd_mu, yd_sd = yd_sd,
+system.time({ m3 <-  run_MCMC(nIter = nIter, x = x, yobs = y, yd_mu = yd_mu, yd_sd = yd_sd,
                  coeff_inits = coeff_inits,
                  sdy_init = sdy_init, yest_inits = yest_inits,
                  sdyest_inits = sdyest_inits,
