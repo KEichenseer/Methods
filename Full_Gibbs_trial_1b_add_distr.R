@@ -136,6 +136,13 @@ run_MCMC <- function(nIter, x, yobs, yd_mu, yd_sd, coeff_inits, sdy_init, yest_i
     #https://stats.stackexchange.com/questions/525674/gibbs-sampler-for-normal-and-inverse-gamma-distribution-in-r
     # https://stats.stackexchange.com/questions/266665/gibbs-sampler-examples-in-r
 
+    # https://statswithr.github.io/book/inference-and-decision-making-with-multiple-parameters.html
+
+    # skewed!!!
+    # https://arxiv.org/pdf/1305.3080.pdf
+    # p.7 explains the above https://www.researchgate.net/publication/340400073_Bayesian_Inference_for_Skew-Symmetric_Distributions
+
+    # Outgrowing the Procrustean Bed of Normality: The Utility of Bayesian Modeling for Asymmetrical Data Analysis
 
     ## 4. Metropolis-Hastings step to estimate the regression coefficients
     proposal_coeff = MH_propose_coeff(coefficients[i-1,],prop_sd =  prop_sd_coeff) # new proposed values
