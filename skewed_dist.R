@@ -33,3 +33,23 @@ mean(y1)
 #### Try Stan
 
 library("rstan") # observe startup messages
+## utter failure, crashes / doesn't install
+
+### end Stan
+
+mu0 <- 0
+sd0 <- 1
+
+yobs <- 1
+sd1 <- 1
+
+N <- 100000
+yestimate          = rnorm(N,
+                             sd0^2/(sd1^2+sd0^2)*yobs + sd1^2/(sd1^2+sd0^2)*mu0,
+                             sqrt(1/sd0^2 + 1/sd1^2))
+
+
+hist(rnorm(N,mu0,sd0), breaks = seq(-100,100,0.1), col = rgb(0,0,0,0.25), xlim = c(-6,6), ylim = c(0,4000))
+hist(rnorm(N,yobs,sd1), breaks = seq(-100,100,0.1), col = rgb(1,0,0,0.25), add = T)
+
+hist(yestimate, breaks = seq(-100,100,0.1), col = rgb(0,0,1,0.25), add = T)
