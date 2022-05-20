@@ -144,7 +144,8 @@ run_MCMC <- function(nIter, x, yobs, yd_mu, yd_sd, coeff_inits, sdy_init, yest_i
 
     # look into this for skew normal Gibbs https://academic.oup.com/biostatistics/article/11/2/317/268224
     # and in the Suppl. M.:
-
+    # implementation: https://scristia.github.io/RcppComputingClub/sn_mix.html
+    #                 https://github.com/scristia/SkewNormalMix/blob/master/R/sn.gibbs.mix.R
 
     # Outgrowing the Procrustean Bed of Normality: The Utility of Bayesian Modeling for Asymmetrical Data Analysis
 
