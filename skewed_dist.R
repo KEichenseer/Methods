@@ -5,11 +5,11 @@ library(truncnorm)
 q1 <- seq(-4,4,0.01)
 plot(q1,dsnorm(q1,mu1,sd1,a1), type = "l")
 
-N <- 10000
+N <- 100000
 
 mu1 <- 0
 sd1 <- 1
-a1 <- 4
+a1 <- 5
 sigma1 <- a1/sqrt(1+a1^2)
 omega1 <- sd1/sqrt(1-(2*sigma1^2)/pi)
 epsilon1 <- mu1 - omega1 * sqrt(2/pi) * sigma1
@@ -53,3 +53,93 @@ hist(rnorm(N,mu0,sd0), breaks = seq(-100,100,0.1), col = rgb(0,0,0,0.25), xlim =
 hist(rnorm(N,yobs,sd1), breaks = seq(-100,100,0.1), col = rgb(1,0,0,0.25), add = T)
 
 hist(yestimate, breaks = seq(-100,100,0.1), col = rgb(0,0,1,0.25), add = T)
+
+
+http://koreascience.or.kr/article/JAKO200504840590864.pdf
+
+alpha = seq(-10,10,0.1)
+rho = alpha/sqrt(alpha^2+1)
+plot(alpha,rho)
+
+omega1 <- sd1/sqrt(1-(2*sigma1^2)/pi)
+epsilon1 <- mu1 - omega1 * sqrt(2/pi) * sigma1
+
+
+
+
+mu0 <- 0
+var0 <- 1000
+
+n =1
+sigma <- 1
+x <- 0
+
+alpha =5
+rho = alpha/sqrt(alpha^2+1)
+
+#x <- sigma_ori/sqrt(1-(2*rho^2)/pi)
+#sigma <- x_ori - omega1 * sqrt(2/pi) * rho
+
+#sigma <- 1 # sigma_ori/sqrt(1-(2*rho^2)/pi)
+#x <- 3 # x_ori - sigma * sqrt(2/pi) * rho
+
+
+N <- 20000
+mu <- rep(NA,N)
+mu[1] <- 1
+
+for(i in 2:N){
+z <- (x - mu[i-1])/sigma
+
+y <- truncnorm::rtruncnorm(n,0,Inf,rho*z,1-rho^2)
+
+mu[i] <- rnorm(1,(n*var0*(mean(x)-sigma*rho*mean(y))+sigma^2*(1-rho^2)*mu0)/(n*var0+sigma^2*(1-rho^2)),
+               (var0*sigma^2*(1-rho^2))/(n*var0+sigma^2*(1-rho^2)) )
+}
+
+hist(mu,breaks = seq(-100,100,0.1), xlim = c(-3,3), add = F, col = rgb(1,0,0,0.2))
+hist(rsnorm(N,x_ori,sigma_ori,alpha), breaks = seq(-100,100,0.1), col = rgb(1,1,0,0.2), xlim = c(0,6), add = T)
+
+mean(mu)
+mean(x)
+
+sigma2 <- sd(mu)/sqrt(1-(2*rho^2)/pi)
+x2 <- mu - sigma2 * sqrt(2/pi) * rho
+hist(x2, breaks = seq(-100,100,0.1), col = rgb(0,0,1,0.1), xlim = c(0,6), add = T)
+
+0.5*(4-pi)*(mean(mu)^3)/(var(mu)^(3/2))
+
+##################################
+
+alpha = seq(-10,10,0.1)
+rho = alpha/sqrt(alpha^2+1)
+plot(alpha,rho)
+
+mu1 <- 3
+sigma1 <- 1
+alpha = -2
+rho = alpha/sqrt(alpha^2+1)
+
+omega1 <- sigma1/sqrt(1-(2*rho^2)/pi)
+epsilon1 <- mu1 - omega1 * sqrt(2/pi) * rho
+
+
+mu0 <- 3
+var0 <- 100
+
+
+
+N <- 100000
+mu <- rep(NA,N)
+mu[1] <- 3
+
+for(i in 2:N){
+  z <- (x - mu[i-1])/omega1
+
+  y <- truncnorm::rtruncnorm(1,0,Inf,rho*z,1-rho^2)
+
+  mu[i] <- rnorm(1,(1*var0*(epsilon1-omega1*rho*y)+omega1^2*(1-rho^2)*mu0)/(1*var0+omega1^2*(1-rho^2)),
+                 (var0*omega1^2*(1-rho^2))/(1*var0+omega1^2*(1-rho^2)) )
+}
+
+hist(mu,1000)
