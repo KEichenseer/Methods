@@ -67,13 +67,13 @@ epsilon1 <- mu1 - omega1 * sqrt(2/pi) * sigma1
 
 N <- 50000
 
-mu1 <- 10
+mu1 <- 4
 sd1 <- 2
-a1 <- 4
+a1 <- 0
 
 
-mu0 <- 15
-var0 <- 4
+mu0 <- 2
+var0 <- 2^2
 
 sigma1 <- a1/sqrt(1+a1^2)
 omega1 <- sqrt((sd1^2)/(1-(2*sigma1^2)/pi)) #sd1/sqrt(1-(2*sigma1^2)/pi)
@@ -84,7 +84,7 @@ epsilon1 <- mu1 - omega1 * sqrt(2/pi) * sigma1
 #epsilon1 <- 0
 
 
-z1 <- rtruncnorm(n = N, a = 0, b = Inf, mean = 0, sd = 1)
+z1 <- truncnorm::rtruncnorm(n = N, a = 0, b = Inf, mean = 0, sd = 1)
 #y1 <- epsilon1 + a1*z1 + rnorm(N,0,omega1)
 y1 <- epsilon1 + omega1*sigma1*z1 + omega1*sqrt(1-(sigma1^2))*rnorm(N,0,1)
 # from https://academic.oup.com/biostatistics/article/11/2/317/268224   # eq. 2.3
@@ -140,16 +140,16 @@ a1
 sigma1 <-  a1/sqrt(1+a1^2)
 omega1 <- sqrt((sd1^2)/(1-(2*sigma1^2)/pi)) #sd1/sqrt(1-(2*sigma1^2)/pi)
 epsilon1 <- mu1 - omega1 * sqrt(2/pi) * sigma1
-z1 <- rtruncnorm(n = N, a = 0, b = Inf, mean = 0, sd = 1)
+z1 <- truncnorm::rtruncnorm(n = N, a = 0, b = Inf, mean = 0, sd = 1)
 #y1 <- epsilon1 + a1*z1 + rnorm(N,0,omega1)
 y2 <- epsilon1 + omega1*sigma1*z1 + omega1*sqrt(1-(sigma1^2))*rnorm(N,0,1)
 
-hist(y1,seq(-100,100,0.1), xlim = c(7,19), ylim = c(0,2000))
+hist(y1,seq(-100,100,0.1), xlim = c(-2,7), ylim = c(0,2000))
 
 hist(y2,seq(-100,100,0.1), xlim = c(-3,3), col = rgb(1,0,0,0.2), add = T)
 
 hist(rnorm(50000,mu0,sqrt(var0)),breaks = seq(-100,100,0.1),col = rgb(0,1,0,0.2),add = T)
-hist(mu[40000:50000],breaks = seq(-100,100,0.05), xlim = c(-3,3), add = T, col = rgb(0,0,1,0.33))
+hist(mu[1:50000],breaks = seq(-100,100,0.1), xlim = c(-3,3), add = T, col = rgb(0,0,1,0.33))
 mean(mu)
 mean(y1)
 
