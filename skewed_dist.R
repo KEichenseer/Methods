@@ -67,44 +67,49 @@ epsilon1 <- mu1 - omega1 * sqrt(2/pi) * sigma1
 
 N <- 50000
 
-mu1 <- 0
-sd1 <- 1
-a1 <- -6
-sigma1 <- a1/sqrt(1+a1^2)
-omega1 <- sd1/sqrt(1-(2*sigma1^2)/pi)
-epsilon1 <- mu1 - omega1 * sqrt(2/pi) * sigma1
+mu1 <- 10
+sd1 <- 2
+a1 <- 4
+
+
+mu0 <- 15
+var0 <- 4
 
 sigma1 <- a1/sqrt(1+a1^2)
+omega1 <- sqrt((sd1^2)/(1-(2*sigma1^2)/pi)) #sd1/sqrt(1-(2*sigma1^2)/pi)
+epsilon1 <- mu1 - omega1 * sqrt(2/pi) * sigma1
+
+#sigma1 <- a1/sqrt(1+a1^2)
 #omega1 <- 1
 #epsilon1 <- 0
 
 
 z1 <- rtruncnorm(n = N, a = 0, b = Inf, mean = 0, sd = 1)
 #y1 <- epsilon1 + a1*z1 + rnorm(N,0,omega1)
-y1 <- epsilon1 + omega1*sigma1*z1 + omega1*sqrt(1-(sigma1^2))*rnorm(N,0,omega1)
-
+y1 <- epsilon1 + omega1*sigma1*z1 + omega1*sqrt(1-(sigma1^2))*rnorm(N,0,1)
+# from https://academic.oup.com/biostatistics/article/11/2/317/268224   # eq. 2.3
 #hist(y1,100)
 #hist(rsnorm(5000,mu1,sd1,a1),50, add = T, col = rgb(0,1,0,0.2))
 
 mean(y1)
 sd(y1)
 
-mu0 <- -3
-var0 <- 0.1
 
 n =1
-sigma <- 1 # sd(y1)
+sigma_ori <- sd(y1)
 #x <- y1[1:n]
-x <- mean(y1)
+x_ori <- mean(y1)
 alpha = a1
 rho = alpha/sqrt(alpha^2+1)
 
 #x <- sigma_ori/sqrt(1-(2*rho^2)/pi)
 #sigma <- x_ori - omega1 * sqrt(2/pi) * rho
 
-#sigma <- 1 # sigma_ori/sqrt(1-(2*rho^2)/pi)
-#x <- 3 # x_ori - sigma * sqrt(2/pi) * rho
+sigma <- sqrt((sigma_ori^2)/(1-(2*rho^2)/pi))# sigma_ori/sqrt(1-(2*rho^2)/pi)
+x <- x_ori - sigma * sqrt(2/pi) * rho
 
+x <- x_ori
+sigma <- sigma_ori
 
 N <- 50000
 mu <- rep(NA,N)
@@ -117,10 +122,10 @@ y <- rep(NA,N)
 for(i in 2:N){
 z[i] <- (x - mu[i-1])/sigma
 
-y[i] <- truncnorm::rtruncnorm(n,0,Inf,rho*z[i],1-rho^2)
+y[i] <- truncnorm::rtruncnorm(n,0,Inf,rho*z[i],sqrt(1-rho^2))
 
 mu[i] <- rnorm(1,(n*var0*(mean(x)-sigma*rho*mean(y[i]))+sigma^2*(1-rho^2)*mu0)/(n*var0+sigma^2*(1-rho^2)),
-               (var0*sigma^2*(1-rho^2))/(n*var0+sigma^2*(1-rho^2)) )
+               sqrt((var0*sigma^2*(1-rho^2))/(n*var0+sigma^2*(1-rho^2))) )
 }
 
 #hist(mu[40000:50000],breaks = seq(-100,100,0.1), xlim = c(-3,5), add = T, col = rgb(0,0,1,0.33))
@@ -129,16 +134,17 @@ mu[i] <- rnorm(1,(n*var0*(mean(x)-sigma*rho*mean(y[i]))+sigma^2*(1-rho^2)*mu0)/(
 
 
 mu1 <- mean(mu[1000:N])
-sd1 <- 1
+mu1
+sd1
 a1
 sigma1 <-  a1/sqrt(1+a1^2)
-omega1 <- sd1/sqrt(1-(2*sigma1^2)/pi)
+omega1 <- sqrt((sd1^2)/(1-(2*sigma1^2)/pi)) #sd1/sqrt(1-(2*sigma1^2)/pi)
 epsilon1 <- mu1 - omega1 * sqrt(2/pi) * sigma1
 z1 <- rtruncnorm(n = N, a = 0, b = Inf, mean = 0, sd = 1)
 #y1 <- epsilon1 + a1*z1 + rnorm(N,0,omega1)
-y2 <- epsilon1 + omega1*sigma1*z1 + omega1*sqrt(1-(sigma1^2))*rnorm(N,0,omega1)
+y2 <- epsilon1 + omega1*sigma1*z1 + omega1*sqrt(1-(sigma1^2))*rnorm(N,0,1)
 
-hist(y1,seq(-100,100,0.1), xlim = c(-5,5))
+hist(y1,seq(-100,100,0.1), xlim = c(7,19), ylim = c(0,2000))
 
 hist(y2,seq(-100,100,0.1), xlim = c(-3,3), col = rgb(1,0,0,0.2), add = T)
 
@@ -146,6 +152,111 @@ hist(rnorm(50000,mu0,sqrt(var0)),breaks = seq(-100,100,0.1),col = rgb(0,1,0,0.2)
 hist(mu[40000:50000],breaks = seq(-100,100,0.05), xlim = c(-3,3), add = T, col = rgb(0,0,1,0.33))
 mean(mu)
 mean(y1)
+
+
+### c.f. normal-normal
+pred <- -7
+sdy <- 2
+yd_mu <- -3
+yd_sd <- 1
+
+y3 <- rnorm(N,
+      sdy^2/(yd_sd^2+sdy^2)*yd_mu + yd_sd^2/(yd_sd^2+sdy^2)*pred,
+      sqrt((sdy^2 * yd_sd^2)/(sdy^2 + yd_sd^2))) # fix this in the main sampler as well
+hist(y3[40000:50000],breaks = seq(-100,100,0.05), xlim = c(-3,3), add = T, col = rgb(1,0,1,0.33))
+
+
+
+
+#### JAGS implementation
+
+model <- function() {
+
+  ## Likelihood
+  for (i in 1:n){
+    y_measurement[i] ~ dnorm(y_estimate[i], 1/(y_se[i]*y_se[i]))
+    y_estimate[i] ~ dnorm(mu0, sd0)
+  }
+
+
+  ## Priors
+mu0 <- -3
+sd0 <- 1
+
+}
+
+
+y_measurement <- -7
+y_se <- 2
+n <- 1
+
+
+regression_data <- list("y_measurement","y_se","n")
+
+fit  <- R2jags::jags(data = regression_data,
+                parameters.to.save = c(
+                                       "y_estimate"
+                ),
+                n.iter = 50000,
+                n.thin = 1,
+                n.chains =  2, # Other values set at default (for simplicity)
+                model.file = model)
+
+y4 <- fit$BUGSoutput$sims.list$y_estimate
+
+hist(y4[40000:50000],breaks = seq(-100,100,0.05), xlim = c(-3,3), add = T, col = rgb(1,1,0,0.33))
+
+
+
+model <- function() {
+
+  ## Likelihood
+
+    z1 ~ dnorm(0,1);T(0,)
+    e1 ~ dnorm(0,1)
+    y1 <- epsilon1 + omega1*rho*z1 + omega1*sqrt(1-(rho^2))*e1
+
+    y1 ~ dnorm(y_estimate, 1/(y_se*y_se))
+    y_estimate ~ dnorm(mu0, sd0)
+
+
+  ## Priors
+  mu0 <- -3
+  sd0 <- 1
+
+}
+
+
+y_measurement <- -7
+y_se <- 2
+n <- 1
+
+
+mu1 <- y_measurement
+sd1 <- y_se
+a1 <- 4
+rho <- a1/sqrt(1+a1^2)
+omega1 <- sd1/sqrt(1-(2*rho^2)/pi)
+epsilon1 <- mu1 - omega1 * sqrt(2/pi) * rho
+
+
+
+regression_data <- list("epsilon1","omega1","rho", "y_se")
+
+fit  <- R2jags::jags(data = regression_data,
+                     parameters.to.save = c(
+                       "y_estimate"
+                     ),
+                     n.iter = 50000,
+                     n.thin = 1,
+                     n.chains =  2, # Other values set at default (for simplicity)
+                     model.file = model)
+
+y4 <- fit$BUGSoutput$sims.list$y_estimate
+
+hist(y4[40000:50000],breaks = seq(-100,100,0.05), xlim = c(-3,3), add = T, col = rgb(1,1,0,0.33))
+
+
 
 ###
 # Ok, this seems to work after all. Turns out that it is difficult for the prior to
