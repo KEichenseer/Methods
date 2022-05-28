@@ -67,13 +67,13 @@ epsilon1 <- mu1 - omega1 * sqrt(2/pi) * sigma1
 
 N <- 50000
 
-mu1 <- 4
+mu1 <- 7
 sd1 <- 2
-a1 <- 0
+a1 <- -7
 
 
 mu0 <- 2
-var0 <- 2^2
+var0 <- 1^2
 
 sigma1 <- a1/sqrt(1+a1^2)
 omega1 <- sqrt((sd1^2)/(1-(2*sigma1^2)/pi)) #sd1/sqrt(1-(2*sigma1^2)/pi)
@@ -144,14 +144,18 @@ z1 <- truncnorm::rtruncnorm(n = N, a = 0, b = Inf, mean = 0, sd = 1)
 #y1 <- epsilon1 + a1*z1 + rnorm(N,0,omega1)
 y2 <- epsilon1 + omega1*sigma1*z1 + omega1*sqrt(1-(sigma1^2))*rnorm(N,0,1)
 
-hist(y1,seq(-100,100,0.1), xlim = c(-2,7), ylim = c(0,2000))
+hist(y1,seq(-100,100,0.1), xlim = c(-2,9), ylim = c(0,2000))
 
-hist(y2,seq(-100,100,0.1), xlim = c(-3,3), col = rgb(1,0,0,0.2), add = T)
+#hist(y2,seq(-100,100,0.1), xlim = c(-3,3), col = rgb(1,0,0,0.2), add = T)
 
 hist(rnorm(50000,mu0,sqrt(var0)),breaks = seq(-100,100,0.1),col = rgb(0,1,0,0.2),add = T)
-hist(mu[1:50000],breaks = seq(-100,100,0.1), xlim = c(-3,3), add = T, col = rgb(0,0,1,0.33))
-mean(mu)
+mu2 <- mu+sd1 * sqrt(2/pi) * sigma1
+sd2 <- sqrt(omega1^2 - omega1^2*2*sigma1^2/pi)
+hist(mu2[1:50000],breaks = seq(-100,100,0.1), xlim = c(-3,3), add = T, col = rgb(0,0,1,0.33))
+
+mean(mu2)
 mean(y1)
+
 
 
 ### c.f. normal-normal
