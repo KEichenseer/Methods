@@ -67,17 +67,17 @@ epsilon1 <- mu1 - omega1 * sqrt(2/pi) * sigma1
 
 N <- 50000
 
-mu1 <- 7
-sd1 <- 2
-a1 <- -7
+mu1 <- 6
+sd1 <- 1
+a1 <- 5
 
 
 mu0 <- 2
 var0 <- 1^2
 
 sigma1 <- a1/sqrt(1+a1^2)
-omega1 <- sqrt((sd1^2)/(1-(2*sigma1^2)/pi)) #sd1/sqrt(1-(2*sigma1^2)/pi)
-epsilon1 <- mu1 - omega1 * sqrt(2/pi) * sigma1
+omega1 <- sd1 #sqrt((sd1^2)/(1-(2*sigma1^2)/pi)) #sd1/sqrt(1-(2*sigma1^2)/pi)
+epsilon1 <- mu1 # mu1 - omega1 * sqrt(2/pi) * sigma1
 
 #sigma1 <- a1/sqrt(1+a1^2)
 #omega1 <- 1
@@ -108,8 +108,8 @@ rho = alpha/sqrt(alpha^2+1)
 sigma <- sqrt((sigma_ori^2)/(1-(2*rho^2)/pi))# sigma_ori/sqrt(1-(2*rho^2)/pi)
 x <- x_ori - sigma * sqrt(2/pi) * rho
 
-x <- x_ori
-sigma <- sigma_ori
+x <- 6
+sigma <- 1
 
 N <- 50000
 mu <- rep(NA,N)
@@ -149,9 +149,13 @@ hist(y1,seq(-100,100,0.1), xlim = c(-2,9), ylim = c(0,2000))
 #hist(y2,seq(-100,100,0.1), xlim = c(-3,3), col = rgb(1,0,0,0.2), add = T)
 
 hist(rnorm(50000,mu0,sqrt(var0)),breaks = seq(-100,100,0.1),col = rgb(0,1,0,0.2),add = T)
+hist(mu[1:50000],breaks = seq(-100,100,0.1), xlim = c(-3,3), add = T, col = rgb(0,0,1,0.33))
+
+
+
 mu2 <- mu+sd1 * sqrt(2/pi) * sigma1
 sd2 <- sqrt(omega1^2 - omega1^2*2*sigma1^2/pi)
-hist(mu2[1:50000],breaks = seq(-100,100,0.1), xlim = c(-3,3), add = T, col = rgb(0,0,1,0.33))
+hist(mu1[1:50000],breaks = seq(-100,100,0.1), xlim = c(-3,3), add = T, col = rgb(0,0,1,0.33))
 
 mean(mu2)
 mean(y1)
