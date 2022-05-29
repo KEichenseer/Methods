@@ -8,7 +8,7 @@ N <- 50000
 
 mu1 <- 8
 sd1 <- 1
-a1 <- 5
+a1 <- -3
 
 sigma1 <- a1/sqrt(1+a1^2)
 omega1 <- sqrt((sd1^2)/(1-(2*sigma1^2)/pi)) #sd1/sqrt(1-(2*sigma1^2)/pi)
@@ -76,10 +76,26 @@ mean(y3)
   ###
   ###
 
+
+  ###
+  ###
+  ###
+
+  xseq <- seq(-2,10,0.01)
+
+  ysnd <- sapply(xseq, function(x)
+    dsun(x,theta0,matrix(tau0),matrix(lambda*tau0),-lambda*(mu-theta0),matrix(sigma^2+lambda^2*tau0), log = T))
+
+  plot(xseq,ysnd,type = "l",lty=2)
+  points(xseq,dnorm(xseq,1,1,log=T),type = "l", col = "red", lty = 1)
+  points(xseq,log(sndens(xseq,epsilon1,omega1,a1)),type = "l", col = "dodgerblue", lty = 1)
+  points(xseq,log(sndens(xseq,epsilon1,omega1,a1))+dnorm(xseq,1,1,log=T)+10.5,type = "l", col = "purple", lty = 3)
+
   mu2 <- mu+sd1 * sqrt(2/pi) * sigma1
   sd2 <- sqrt(omega1^2 - omega1^2*2*sigma1^2/pi)
   hist(mu2[1:50000],breaks = seq(-100,100,0.1), xlim = c(-3,3), add = T, col = rgb(0,0,1,0.33))
 
+  sndens <- function(x,epsilon,omega,alpha) 2/omega * dnorm((x-epsilon)/omega) * pnorm(alpha/omega * (x-epsilon))
 
 
   #rnorm(1,(n*var0*(mean(x)-sigma*rho*mean(y[i]))+sigma^2*(1-rho^2)*mu0)/(n*var0+sigma^2*(1-rho^2)),
