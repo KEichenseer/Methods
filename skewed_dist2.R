@@ -8,7 +8,7 @@ N <- 50000
 
 mu1 <- 8
 sd1 <- 1
-a1 <- -3
+a1 <- 5
 
 sigma1 <- a1/sqrt(1+a1^2)
 omega1 <- sqrt((sd1^2)/(1-(2*sigma1^2)/pi)) #sd1/sqrt(1-(2*sigma1^2)/pi)
@@ -35,7 +35,7 @@ sigma <- omega1 # 2
 lambda <- a1
 
 x_mu <- 1
-tau <- 1
+tau <- 1.5
 
 
 h_lambda <- lambda/sqrt(sigma^2+tau^2*(1+lambda^2))
@@ -63,6 +63,8 @@ library(sn)
   ysn2 <- rsun(n=50000,theta0,matrix(tau0),matrix(lambda*tau0),-lambda*(mu-theta0),matrix(sigma^2+lambda^2*tau0))
 
   hist(y3,seq(-100,100,0.1), xlim = c(-2,11), ylim = c(0,4000))
+  hist(y1,seq(-100,100,0.1), xlim = c(-2,11), ylim = c(0,4000))
+
 mean(y3)
   #hist(y2,seq(-100,100,0.1), xlim = c(-3,3), col = rgb(1,0,0,0.2), add = T)
 
@@ -71,6 +73,10 @@ mean(y3)
   #hist(rnorm(50000,post_mu,sqrt(post_var)),breaks = seq(-100,100,0.1),col = rgb(1,0,0,0.2),add = T)
 
   hist(ysn,breaks = seq(-100,100,0.1),col = rgb(1,0,1,0.2),add = T)
+
+  hist(rnorm(N,post_mu,sqrt(post_var)),breaks = seq(-100,100,0.1),col = rgb(0,0,1,0.2),add = T)
+
+  var(rnorm(N,post_mu,post_var))
 
   ###
   ###
@@ -87,7 +93,7 @@ mean(y3)
     dsun(x,theta0,matrix(tau0),matrix(lambda*tau0),-lambda*(mu-theta0),matrix(sigma^2+lambda^2*tau0), log = T))
 
   plot(xseq,ysnd,type = "l",lty=2)
-  points(xseq,dnorm(xseq,1,1,log=T),type = "l", col = "red", lty = 1)
+  plot(xseq,dnorm(xseq,1,tau,log=T),type = "l", col = "red", lty = 1)
   points(xseq,log(sndens(xseq,epsilon1,omega1,a1)),type = "l", col = "dodgerblue", lty = 1)
   points(xseq,log(sndens(xseq,epsilon1,omega1,a1))+dnorm(xseq,1,1,log=T)+10.5,type = "l", col = "purple", lty = 3)
 
