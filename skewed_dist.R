@@ -67,13 +67,13 @@ epsilon1 <- mu1 - omega1 * sqrt(2/pi) * sigma1
 
 N <- 50000
 
-mu1 <- 8
-sd1 <- 1
-a1 <- 5
+mu1 <- 3
+sd1 <- 2
+a1 <- 4
 
 
 mu0 <- 1
-var0 <- 1.5^2
+var0 <- 2^2
 
 sigma1 <- a1/sqrt(1+a1^2)
 omega1 <- sd1 #sqrt((sd1^2)/(1-(2*sigma1^2)/pi)) #sd1/sqrt(1-(2*sigma1^2)/pi)
@@ -121,9 +121,24 @@ sigma1 <- a1/sqrt(1+a1^2)
 omega1 <- sqrt((sd1^2)/(1-(2*sigma1^2)/pi)) #sd1/sqrt(1-(2*sigma1^2)/pi)
 epsilon1 <- mu1 - omega1 * sqrt(2/pi) * sigma1
 
-x<-epsilon1
-sigma <-omega1
+
+
+N <- 50000
+
+mu1 <- 3
+sd1 <- 2
+a1 <- -10
+
+
+mu0 <- 5
+var0 <- 1^2
+
+x<-mu1
+sigma <-sd1
 rho <- a1/sqrt(1+a1^2)
+# set
+rho <- -a1/sqrt(1+a1^2)
+# and it works!
 
 N <- 50000
 mu <- rep(NA,N)
@@ -189,8 +204,30 @@ hist(y3[40000:50000],breaks = seq(-100,100,0.05), xlim = c(-3,3), add = T, col =
 
 
 
+### Compare density
+xseq <- seq(-4,9,0.01)
 
-#### JAGS implementation
+mu1 = 3
+sigma = 2
+lambda = 10
+
+mu0 <- 5
+sigma0 <- 1
+
+### That one is correct:
+plot(xseq,log(2*dnorm(xseq,mu1,sigma)*pnorm(lambda*xseq,lambda*mu1,sigma)), type = "l", col = "red", lty = 2, yaxs = "i",
+     ylim = c(-10,0))
+points(xseq,dnorm(xseq,mu0,sigma0, log = T), type = "l", lty = 2)
+
+points(xseq,(dnorm(xseq,mu0,sigma0, log = T)+log(2*dnorm(xseq,mu1,sigma)*pnorm(lambda*xseq,lambda*mu1,sigma))), type = "l", lty = 2,
+       col = "dodgerblue")
+
+
+plot(xseq,exp((dnorm(xseq,mu0,sigma0, log = T)+log(2*dnorm(xseq,mu1,sigma)*pnorm(lambda*xseq,lambda*mu1,sigma)))),
+     type = "l", xlim = c(2,9), yaxs = "i")
+
+hist(mu,100, xlim = c(2,9))
+  #### JAGS implementation
 
 model <- function() {
 

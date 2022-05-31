@@ -28,7 +28,7 @@ points(xseq,fGarch::dsnorm(xseq,mu,sigma,lambda), type = "l", col = "red", lty =
 plot(xseq,2*dnorm(xseq,mu,sigma)*pnorm(lambda*xseq,lambda*mu,sigma), type = "l", col = "red", lty = 2, yaxs = "i", add = T)
 
 ### That's the skew from http://koreascience.or.kr/article/JAKO200504840590864.pdf
-points(xseq,2/sigma*dnorm((x-mu)/sigma)*pnorm(lambda*(x-mu)/sigma), type = "l", col = "blue", lty = 3)
+points(xseq,2/sigma*dnorm((xseq-mu)/sigma)*pnorm(lambda*(xseq-mu)/sigma), type = "l", col = "blue", lty = 3)
 
 ### Good!
 
