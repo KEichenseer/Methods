@@ -205,18 +205,22 @@ hist(y3[40000:50000],breaks = seq(-100,100,0.05), xlim = c(-3,3), add = T, col =
 
 
 ### Compare density
-xseq <- seq(-4,9,0.01)
+xseq <- seq(0,5,0.01)
+2.560445286724021 0.563299613653085 0.560573070486689
 
-mu1 = 3
-sigma = 2
-lambda = 10
+mu1 = 2.560445286724021
+sigma = 0.563299613653085
+lambda = 0.560573070486689
 
 mu0 <- 5
 sigma0 <- 1
 
 ### That one is correct:
-plot(xseq,log(2*dnorm(xseq,mu1,sigma)*pnorm(lambda*xseq,lambda*mu1,sigma)), type = "l", col = "red", lty = 2, yaxs = "i",
-     ylim = c(-10,0))
+plot(xseq,(2*dnorm(xseq,mu1,sigma)*pnorm(lambda*xseq,lambda*mu1,sigma)), type = "l", col = "red", lty = 1, lwd = 2,
+     xlab = "Temperature", ylab = "density", xpd = T)
+
+plot(xseq,dunif(xseq,18,40), type = "l", col = "red", lty = 1, lwd = 2,
+     xlab = "Temperature", ylab = "density", xpd = T)
 points(xseq,dnorm(xseq,mu0,sigma0, log = T), type = "l", lty = 2)
 
 points(xseq,(dnorm(xseq,mu0,sigma0, log = T)+log(2*dnorm(xseq,mu1,sigma)*pnorm(lambda*xseq,lambda*mu1,sigma))), type = "l", lty = 2,
