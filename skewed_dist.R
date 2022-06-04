@@ -95,6 +95,9 @@ mean(y1)
 sd(y1)
 
 
+### MAKE it so that at mu = 37 it is pretty much normal, but at mu = 25 it should be skewed.
+
+
 n =1
 sigma_ori <- sd(y1)
 #x <- y1[1:n]
@@ -127,11 +130,10 @@ N <- 50000
 
 mu1 <- 3
 sd1 <- 2
-a1 <- -10
+a1 <- 4
 
-
-mu0 <- 5
-var0 <- 1^2
+mu0 <- 1
+var0 <- 2^2
 
 x<-mu1
 sigma <-sd1
@@ -173,7 +175,7 @@ z1 <- truncnorm::rtruncnorm(n = N, a = 0, b = Inf, mean = 0, sd = 1)
 #y1 <- epsilon1 + a1*z1 + rnorm(N,0,omega1)
 y2 <- epsilon1 + omega1*sigma1*z1 + omega1*sqrt(1-(sigma1^2))*rnorm(N,0,1)
 
-hist(y1,seq(-100,100,0.1), xlim = c(-2,9), ylim = c(0,2000), add = T, col = rgb(.9,.9,0,0.2))
+hist(y1,seq(-100,100,0.1), xlim = c(-2,9), ylim = c(0,2000), add = F, col = rgb(.9,.9,0,0.2))
 
 #hist(y2,seq(-100,100,0.1), xlim = c(-3,3), col = rgb(1,0,0,0.2), add = T)
 
@@ -205,19 +207,21 @@ hist(y3[40000:50000],breaks = seq(-100,100,0.05), xlim = c(-3,3), add = T, col =
 
 
 ### Compare density
-xseq <- seq(0,5,0.01)
-2.560445286724021 0.563299613653085 0.560573070486689
+xseq <- seq(-2,8,0.01)
 
-mu1 = 2.560445286724021
-sigma = 0.563299613653085
-lambda = 0.560573070486689
+mu1 = 3
+sigma = 2
+lambda = 4
 
 mu0 <- 5
 sigma0 <- 1
 
 ### That one is correct:
-plot(xseq,(2*dnorm(xseq,mu1,sigma)*pnorm(lambda*xseq,lambda*mu1,sigma)), type = "l", col = "red", lty = 1, lwd = 2,
-     xlab = "Temperature", ylab = "density", xpd = T)
+plot(xseq,(2*dnorm(xseq,mu1,sigma)*pnorm(lambda*xseq,lambda*mu1,sigma)), type = "l", col = "blue", lty = 1, lwd = 2,
+     xlab = "Temperature", ylab = "density", xpd = T, add = F)
+points(xseq,2/sigma*dnorm((xseq-mu1)/sigma)*pnorm(lambda*(xseq-mu1)/sigma), type = "l", lty = 2, lwd = 2, col = "red")
+
+
 
 plot(xseq,dunif(xseq,18,40), type = "l", col = "red", lty = 1, lwd = 2,
      xlab = "Temperature", ylab = "density", xpd = T)
@@ -225,6 +229,51 @@ points(xseq,dnorm(xseq,mu0,sigma0, log = T), type = "l", lty = 2)
 
 points(xseq,(dnorm(xseq,mu0,sigma0, log = T)+log(2*dnorm(xseq,mu1,sigma)*pnorm(lambda*xseq,lambda*mu1,sigma))), type = "l", lty = 2,
        col = "dodgerblue")
+
+### lambda density
+xseq <- seq(-8,8,0.01)
+lambda = 2
+mu1 = -2
+sigma1 = 2
+
+mu0 = -2
+sigma0 = 2
+
+x = 3
+plot(xseq,log(2*dnorm(xseq,mu1,sigma1)*pnorm(lambda*xseq,lambda*mu1,sigma1)), type = "l", col = "red", lty = 1, lwd = 2,
+     xlab = "Temperature", ylab = "density", xpd = T, ylim = c(-5,0.5),xpd = F)
+abline(v = x)
+points(xseq,log(dnorm(xseq,mu0,sigma0)), type = "l", col = "green")
+
+log(2*dnorm(x,mu1,sigma1)*pnorm(lambda*x,lambda*mu1,sigma1)) + log(dnorm(x,mu0,sigma0))
+
+lambdaseq <- seq(-10,12,0.001)
+mu1 = 0
+sigma = 1
+
+x = 5
+plot(lambdaseq,log(sapply(lambdaseq, function(lambda) (2*dnorm(x,mu1,sigma)*pnorm(lambda*x,lambda*mu1,sigma))*dnorm(lambda,3,3))),
+     type = "l", col = "red", lty = 1, lwd = 2,
+     xlab = "Temperature", ylab = "density", xpd = T, ylim = c(-20,-12))
+
+points(lambdaseq,log(dnorm(lambdaseq,3,3))-10, type = "l", col = "green", lty = 1, lwd = 2,
+     xlab = "Temperature", ylab = "density", xpd = T)
+
+points(lambdaseq,log(sapply(lambdaseq, function(lambda) (2*dnorm(x,mu1,sigma)*pnorm(lambda*x,lambda*mu1,sigma)))), type = "l", col = "blue", lty = 1, lwd = 2,
+       xlab = "Temperature", ylab = "density", xpd = T)
+
+plot(seq(0,10,0.1),log(sapply(seq(0,10,0.1), function(lambda) (2*dnorm(x,mu1,sigma)*pnorm(lambda*x,lambda*mu1,sigma)))), type = "l", col = "blue", lty = 1, lwd = 2,
+       xlab = "Temperature", ylab = "density", xpd = T)
+
+
+
+rescale <- function(x) x/(max(x)-min(x))
+
+lambda <- lambdaseq[which.max((2*dnorm(x,mu1,sigma)*pnorm(lambdaseq*x,lambdaseq*mu1,sigma))*dnorm(lambdaseq,3,3))]
+lambda
+plot(xseq,(2*dnorm(xseq,mu1,sigma)*pnorm(lambda*xseq,lambda*mu1,sigma)), type = "l", col = "blue", lty = 1, lwd = 2,
+     xlab = "Temperature", ylab = "density", xpd = T)
+
 
 
 plot(xseq,exp((dnorm(xseq,mu0,sigma0, log = T)+log(2*dnorm(xseq,mu1,sigma)*pnorm(lambda*xseq,lambda*mu1,sigma)))),
