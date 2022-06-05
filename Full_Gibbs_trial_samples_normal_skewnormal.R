@@ -65,9 +65,40 @@ logposterior_skew <- function(x, yest, mu, sigma, lambda, coeff, sdy){
   return (loglik_skew(x, yest, mu, sigma, lambda, coeff, sdy))
 }
 
+logpostold_lik_wrapper <- function(n_p,n_norm,n_skew) {
+  out <- 0
+  if(n_p != 0) out <- out + logposterior_norm(x = x[n_p_ind], yest = yestimate[i,n_p_ind], ymean = yobs_mean,
+                                              sdyest = sdyest[i,], coeff = coefficients[i-1,],
+                                              sdy = sdy[i])
+  if(n_norm != 0) out <- out + logposterior_norm(x = x[n_norm_ind], yest = yestimate[i,n_norm_ind], ymean = ynorm_mu,
+                                                 sdyest = ynorm_sd, coeff = coefficients[i-1,],
+                                                 sdy = sdy[i])
+  if(n_skew != 0) out <- out +  logposterior_skew(x = x[n_skew_ind], yest = yestimate[i,n_skew_ind], mu = yskew_mu, yskew_sigma, yskew_lambda,
+                                                  coeff = coefficients[i-1,], sdy[i])
+  return(out)
+}
+
+logpostnew_lik_wrapper <- function(n_p,n_norm,n_skew) {
+  out <- 0
+  if(n_p != 0) out <- out + logposterior_norm(x = x[n_p_ind], yest = yestimate[i,n_p_ind], ymean = yobs_mean,
+                                              sdyest = sdyest[i,], coeff = proposal_coeff,
+                                              sdy = sdy[i])
+  if(n_norm != 0) out <- out + logposterior_norm(x = x[n_norm_ind], yest = yestimate[i,n_norm_ind], ymean = ynorm_mu,
+                                                 sdyest = ynorm_sd, coeff = proposal_coeff,
+                                                 sdy = sdy[i])
+  if(n_skew != 0) out <- out +  logposterior_skew(x = x[n_skew_ind], yest = yestimate[i,n_skew_ind], mu = yskew_mu, yskew_sigma, yskew_lambda,
+                                                  coeff = proposal_coeff, sdy[i])
+  return(out)
+
+}
+
+
 MH_propose_coeff <- function(coeff, prop_sd_coeff){
   return(rnorm(4,mean = coeff, sd= prop_sd_coeff))
 }
+
+
+
 #MH_propose_yest <- function(yest, prop_sd_yest){
 #  return(mvnfast::rmvn(1,mu = yest, sigma = prop_sd_yest))
 #}
@@ -96,7 +127,7 @@ error_polygon <- function(x,en,ep,color) {
 }
 #
 # Main MCMCM function
-run_MCMC <- function(nIter, x, ylist, ynorm_mu, ynorm_sd, yskew_mu, yskew_sigma, yskew_lambda, coeff_inits, sdy_init, yest_inits, sdyest_inits,
+run_MCMC <- function(nIter = 1000, obsmat = NULL, distrmat = NULL, coeff_inits, sdy_init, yest_inits, sdyest_inits,
                      prop_sd_coeff, quiet = FALSE){
   ### Initialisation
   coefficients = array(dim = c(nIter,4)) # set up array to store coefficients
@@ -105,45 +136,70 @@ run_MCMC <- function(nIter, x, ylist, ynorm_mu, ynorm_sd, yskew_mu, yskew_sigma,
   sdy[1] = sdy_init # intialise sdy
 
 
+
+  x = NULL
+  if(!is.null(obsmat)) {
+  ylist <- lapply(unique(obsmat$sample), function(x) obsmat$temperature[which(obsmat$sample == x)])
+  x <- as.numeric(sapply(unique(obsmat$sample), function(x) unique(obsmat$latitude[which(obsmat$sample == x)])))
   n_p <- length(ylist)
-
   n_p_ind <- 1:n_p
+  } else n_p <- 0
 
-  n_norm <- length(ynorm_mu)
+  if(!is.null(distrmat)) {
 
-  n_norm_ind <- (n_p+1):(n_p+n_norm)
+    x <- c(x,as.numeric(distrmat$latitude))
 
-  n_skew <- length(yskew_mu)
+    ynorm_mu <- as.numeric(distrmat$location[which(distrmat$distribution == "normal")])
+    ynorm_sd <- as.numeric(distrmat$scale[which(distrmat$distribution == "normal")])
 
-  n_skew_ind <- (n_p+n_norm+1):(n_p+n_norm+n_skew)
+    yskew_mu <- as.numeric(distrmat$location[which(distrmat$distribution == "skew-normal")])
+    yskew_sigma <- as.numeric(distrmat$scale[which(distrmat$distribution == "skew-normal")])
+    yskew_lambda <- as.numeric(distrmat$shape[which(distrmat$distribution == "skew-normal")])
+
+    n_norm <- length(ynorm_mu)
+    n_norm_ind <- (n_p+1):(n_p+n_norm)
+
+    n_skew <- length(yskew_mu)
+
+    n_skew_ind <- (n_p+n_norm+1):(n_p+n_norm+n_skew)
+
+
+  } else {
+  n_norm <- 0
+  n_skew <- 0
+  }
 
   nbin <- n_p + n_norm + n_skew
 
   yestimate = array(dim = c(nIter,nbin)) # set up array to store coefficients
   yestimate[1,] = yest_inits # initialise coefficients
 
-  sdyest = array(dim = c(nIter,n_p)) # set up vector to store sdy
-  sdyest[1,] = sdyest_inits # intialise sdy
-
   A_sdy = 1 # parameter for the prior on the inverse gamma distribution of sdy
   B_sdy = 1 # parameter for the prior on the inverse gamma distribution of sdy
   shape_sdy <- A_sdy+nbin/2 # shape parameter for the inverse gamma
 
 
-  #### Investigate these: Need to be broad for single obser
-  A_sdyest = 1 # parameter for the prior on the inverse gamma distribution of sdyest
-  B_sdyest = 1 # parameter for the prior on the inverse gamma distribution of sdyest
-  ####
-  yn = sapply(ylist,length)
-  #yn[which(is.na(yobs))] = NA
-  shape_sdyest =  A_sdyest+yn/2 # shape parameter for the inverse gamma
-  ### n-1?!
-  ymean = c(sapply(ylist,mean),ynorm_mu) # mean of observations and means of given distributions
-  yvar = sapply(ylist,var)
-  #yvar[which(is.na(yvar))] <- max(yvar,na.rm=T)
-  sumobs <- sapply(ylist,sum)
+  sdyest = array(dim = c(nIter,n_p)) # set up vector to store sdy
+  sdyest[1,] = sdyest_inits # intialise sdy
 
-  yskew_rho <- -yskew_lambda/sqrt(1+yskew_lambda^2)
+
+  ymean = NULL
+  if(n_p != 0) {
+    #### Investigate these: Need to be broad for single obser
+    A_sdyest = 1 # parameter for the prior on the inverse gamma distribution of sdyest
+    B_sdyest = 1 # parameter for the prior on the inverse gamma distribution of sdyest
+    ####
+    yn = sapply(ylist,length)
+    #yn[which(is.na(yobs))] = NA
+    shape_sdyest =  A_sdyest+yn/2 # shape parameter for the inverse gamma
+    ### n-1?!
+    yobs_mean= c(sapply(ylist,mean))
+    yobs_var = sapply(ylist,var)
+    sumobs <- sapply(ylist,sum)
+
+  }
+
+    if(n_skew != 0) yskew_rho <- -yskew_lambda/sqrt(1+yskew_lambda^2) # not sure why but this needs to be negative
 
   logpost = rep(NA,nIter)
 
@@ -159,6 +215,7 @@ run_MCMC <- function(nIter, x, ylist, ynorm_mu, ynorm_sd, yskew_mu, yskew_sigma,
     ### 1. Gibbs steps for data that have multiple points (estimate global mean and sd)
 
     ## 1.1.a Gibbs step to estimate yestimate
+    if(n_p != 0) {
     yestimate[i,1:n_p] = rnorm(n_p,
                                #(sumobs/sdyest[i-1,]^2 + pred/sdy[i-1]) / (yn/sdyest[i-1,]^2) + (1/sdy[i-1]^2),
                                1/(1/sdy[i-1]^2 + yn/sdyest[i-1,1:n_p]^2)*(pred[1:n_p]/sdy[i-1]^2 + sumobs/sdyest[i-1,1:n_p]^2),
@@ -169,21 +226,25 @@ run_MCMC <- function(nIter, x, ylist, ynorm_mu, ynorm_sd, yskew_mu, yskew_sigma,
     for(j in 1:n_p) sdyest[i,j] = sqrt(1/rgamma(1,
                                                 shape_sdyest[j],
                                                 (B_sdyest+0.5*sum((ylist[[j]]-yestimate[i,j])^2))))
+    }
 
     ### 1.2. Gibbs steps for data that have sample mean and sd given (estimate global mean only)
     ## 1.2.a Gibbs step to estimate yestimate
     ### distribution from here: https://people.eecs.berkeley.edu/~jordan/courses/260-spring10/lectures/lecture5.pdf
+    if(n_norm != 0) {
     yestimate[i,n_norm_ind] = rnorm(n_norm,
                                  sdy[i-1]^2/(ynorm_sd^2+sdy[i-1]^2)*ynorm_mu + ynorm_sd^2/(ynorm_sd^2+sdy[i-1]^2)*pred[n_norm_ind],
                                  sqrt(1/sdy[i-1]^2 + 1/ynorm_sd^2))
-
+    }
     ### 1.3. Gibbs steps for data that have location, scale and shape parameter given (skew-normal). Estimate global mean only)
     ## 1.3.a Gibbs step to estimate yestimate
     ### distribution from here: http://koreascience.or.kr/article/JAKO200504840590864.pdf
+    if(n_skew != 0) {
     z <- (yskew_mu - yestimate[i-1,n_skew_ind])/yskew_sigma
     y <- truncnorm::rtruncnorm(n_skew,0,Inf,yskew_rho*z,sqrt(1-yskew_rho^2))
     yestimate[i,n_skew_ind] = skew_mu(x=yskew_mu, y=y, sigma=yskew_sigma, rho=yskew_rho,
                                       mu_prior=pred[n_skew_ind], sigma_prior=sdy[i-1])
+    }
 
 
 
@@ -216,19 +277,10 @@ run_MCMC <- function(nIter, x, ylist, ynorm_mu, ynorm_sd, yskew_mu, yskew_sigma,
 
     if(any(proposal_coeff[4] <= 0)) HR = 0 else {# Q needs to be >0
       # Hastings ratio of the proposal
-      logpostold = logposterior_norm(x = x[c(n_p_ind,n_norm_ind)], yest = yestimate[i,c(n_p_ind,n_norm_ind)], ymean = ymean,
-                                sdyest = c(sdyest[i,],ynorm_sd), coeff = coefficients[i-1,],
-                                sdy = sdy[i]) +
-                   logposterior_skew(x = x[n_skew_ind], yest = yestimate[i,n_skew_ind], mu = yskew_mu, yskew_sigma, yskew_lambda,
-                                     coeff = coefficients[i-1,], sdy[i]) +
+      logpostold = logpostold_lik_wrapper(n_p,n_norm,n_skew) +
                    logprior(coefficients[i-1,])
 
-
-      logpostnew = logposterior_norm(x = x[c(n_p_ind,n_norm_ind)], yest = yestimate[i,c(n_p_ind,n_norm_ind)], ymean = ymean,
-                                     sdyest = c(sdyest[i,],ynorm_sd), coeff = proposal_coeff,
-                                     sdy = sdy[i]) +
-                   logposterior_skew(x = x[n_skew_ind], yest = yestimate[i,n_skew_ind], mu = yskew_mu, yskew_sigma, yskew_lambda,
-                          coeff = proposal_coeff, sdy[i]) +
+      logpostnew = logpostnew_lik_wrapper(n_p,n_norm,n_skew) +
                    logprior(proposal_coeff)
 
       HR = exp(logpostnew -
@@ -328,11 +380,22 @@ points(x[2],ynorm_mu, col = "blue")
 points(rep(x[2],2),ynorm_mu+c(-2,2)*ynorm_sd, col = "blue", type = "l")
 points(x[3],yskew_mu, col = "red")
 
+
+obsmat <- data.frame(cbind(c(15,15,15,50,50,50),c(1,1,1,2,2,2),c(28,33,34,18,14,22)))# column latitude, sample, temperature
+colnames(obsmat) <- c("latitude", "sample", "temperature")
+distrmat <- data.frame(cbind(c(5,30),c("normal","skew-normal"),c(35,30), c(4,4), c(NA,5)))# column latitude, distribution, location, scale, shape
+colnames(distrmat) <- c("latitude", "distribution", "location", "scale", "shape")
+
+prop_sd_coeff <- c(3,3,3,0.1)
+coeff_inits = c(0,30,45,0.1)
+yest_inits = rep(25,length(unique(obsmat$sample))+nrow(distrmat)) #c(30,25,20,15,10,0,0)
+sdyest_inits = rep(2,length(unique(obsmat$sample)))
+
+
 nIter = 50000
 sdy_init = 1
 
-system.time({ m1 <-  run_MCMC(nIter = nIter, x = x, ylist = ylist, ynorm_mu = ynorm_mu,ynorm_sd = ynorm_sd,
-                              yskew_mu  = yskew_mu, yskew_sigma = yskew_sigma, yskew_lambda = yskew_lambda,
+system.time({ m1 <-  run_MCMC(nIter = nIter, obsmat = obsmat, distrmat = distrmat,
                               coeff_inits = coeff_inits,
                               sdy_init = sdy_init, yest_inits = yest_inits,
                               sdyest_inits = sdyest_inits,
