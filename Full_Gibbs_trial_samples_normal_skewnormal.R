@@ -7,6 +7,7 @@ gradient <- function(x, coeff, sdy) { # sigma is labelled "sdy"
   return(A + max(c(K-A,0))/((1+(exp(Q*(x-M))))) + rnorm(length(x),0,sdy))
 }
 
+
 loglik_norm <- function(x, yest, ymean, sdyest, coeff, sdy) {
   # extract regression coefficients
   coeff = unlist(coeff)
@@ -56,6 +57,90 @@ logprior <- function(coeff) {
     dnorm(coeff[3], 45, 10, log = TRUE),
     dlnorm(coeff[4], -2.2, 0.8, log = TRUE))))
 }
+
+
+##############
+##############  Parametrise with difference between hot and cold end instead
+
+gradient <- function(x, coeff, sdy) { # parametrise with difference between cold and hot end instead
+  coeff = unlist(coeff)
+  A = coeff[1]
+  DKA = coeff[2]
+  M = coeff[3]
+  Q = coeff[4]
+  return(A + DKA/((1+(exp(Q*(x-M))))) + rnorm(length(x),0,sdy))
+}
+
+loglik_norm <- function(x, yest, ymean, sdyest, coeff, sdy) {
+  # extract regression coefficients
+  coeff = unlist(coeff)
+  A = coeff[1]
+  DKA = coeff[2]
+  M = coeff[3]
+  Q = coeff[4]
+  # likelihood for yest - oxygen isotope data normal distributed
+  ll1 <- sum(dnorm(yest, ymean, sdyest,log=TRUE),na.rm=T)
+
+  # likelihood for yest - other PDFs
+  # likelihood for
+  #ll1b <- sum(dunif(yest[1],20,40, log = TRUE),
+  #            dnorm(yest[6],6,5, log = TRUE))
+  pred = A + DKA/((1+(exp(Q*(x-M)))))
+  ll2 <- sum(dnorm(yest, mean = pred, sd = sdy, log = TRUE))
+  return(c(ll2+ll1))
+}
+
+
+loglik_skew <- function(x, yest, mu, sigma, lambda, coeff, sdy) {
+  # extract regression coefficients
+  coeff = unlist(coeff)
+  A = coeff[1]
+  DKA = coeff[2]
+  M = coeff[3]
+  Q = coeff[4]
+  # likelihood for yest - oxygen isotope data normal distributed
+  ll1 <- sum(log(2/sigma)+dnorm((yest-mu)/sigma,log=T)+pnorm(lambda*(yest-mu)/sigma,log=T))
+
+
+  # likelihood for yest - other PDFs
+  # likelihood for
+  #ll1b <- sum(dunif(yest[1],20,40, log = TRUE),
+  #            dnorm(yest[6],6,5, log = TRUE))
+  pred = A + DKA/((1+(exp(Q*(x-M)))))
+  ll2 <- sum(dnorm(yest, mean = pred, sd = sdy, log = TRUE))
+  return(c(ll2+ll1))
+}
+
+
+logprior <- function(coeff) {
+  coeff = unlist(coeff)
+  return(sum(c(
+    log(2/12)+dnorm((coeff[1] - (-2.85))/12,log=T)+pnorm(10*(coeff[1] - (-2.85))/12,log=T),  #dunif(coeff[1], -4, 40, log = TRUE),
+    dtnorm(coeff[2], 0, Inf,25,12, log = TRUE),
+    dnorm(coeff[3], 45, 10, log = TRUE),
+    dlnorm(coeff[4], -2.2, 0.8, log = TRUE))))
+}
+
+dtnorm <- function(x,lower,upper,mean,sd, log = FALSE) {
+  ret <- numeric(length(x))
+  ret[x < lower | x > upper] <- if (log)
+    -Inf
+  else 0
+  ret[upper < lower] <- NaN
+  ind <- x >= lower & x <= upper
+  if (any(ind)) {
+    denom <- pnorm(upper, mean, sd) - pnorm(lower, mean,
+                                            sd)
+    xtmp <- dnorm(x, mean, sd, log)
+    if (log)
+      xtmp <- xtmp - log(denom)
+    else xtmp <- xtmp/denom
+    ret[x >= lower & x <= upper] <- xtmp[ind]
+  }
+  ret
+} # from msm
+
+
 
 logposterior_norm <- function(x, yest, ymean, sdyest, coeff, sdy){
   return (loglik_norm(x, yest, ymean, sdyest, coeff, sdy))
@@ -202,7 +287,6 @@ run_MCMC <- function(nIter = 1000, obsmat = NULL, distrmat = NULL, coeff_inits, 
     if(n_skew != 0) yskew_rho <- -yskew_lambda/sqrt(1+yskew_lambda^2) # not sure why but this needs to be negative
 
   logpost = rep(NA,nIter)
-
   # start progress bar
   #if (!quiet) cli::cli_progress_bar('Sampling', total = nIter)
   ### The MCMC loop
@@ -274,14 +358,34 @@ run_MCMC <- function(nIter = 1000, obsmat = NULL, distrmat = NULL, coeff_inits, 
     proposal_coeff = MH_propose_coeff(coefficients[i-1,],prop_sd =  prop_sd_coeff) # new proposed values
 
 
-
-    if(any(proposal_coeff[4] <= 0)) HR = 0 else {# Q needs to be >0
+    if(any(proposal_coeff[4] <= 0) | i == 2) {
+      HR = 0
+      } else {# Q needs to be >0
       # Hastings ratio of the proposal
-      logpostold = logpostold_lik_wrapper(n_p,n_norm,n_skew) +
-                   logprior(coefficients[i-1,])
+      logpostold = 0
 
-      logpostnew = logpostnew_lik_wrapper(n_p,n_norm,n_skew) +
-                   logprior(proposal_coeff)
+      if(n_p != 0) logpostold <- logpostold + logposterior_norm(x = x[n_p_ind], yest = yestimate[i,n_p_ind], ymean = yobs_mean,
+                                                  sdyest = sdyest[i,], coeff = coefficients[i-1,],
+                                                  sdy = sdy[i])
+      if(n_norm != 0) logpostold <- logpostold + logposterior_norm(x = x[n_norm_ind], yest = yestimate[i,n_norm_ind], ymean = ynorm_mu,
+                                                     sdyest = ynorm_sd, coeff = coefficients[i-1,],
+                                                     sdy = sdy[i])
+      if(n_skew != 0) logpostold <- logpostold +  logposterior_skew(x = x[n_skew_ind], yest = yestimate[i,n_skew_ind], mu = yskew_mu, yskew_sigma, yskew_lambda,
+                                                      coeff = coefficients[i-1,], sdy[i])
+
+      logpostold = logpostold + logprior(coefficients[i-1,])
+
+      logpostnew = 0
+
+      if(n_p != 0) logpostnew <- logpostnew + logposterior_norm(x = x[n_p_ind], yest = yestimate[i,n_p_ind], ymean = yobs_mean,
+                                                  sdyest = sdyest[i,], coeff = proposal_coeff,
+                                                  sdy = sdy[i])
+      if(n_norm != 0) logpostnew <- logpostnew + logposterior_norm(x = x[n_norm_ind], yest = yestimate[i,n_norm_ind], ymean = ynorm_mu,
+                                                     sdyest = ynorm_sd, coeff = proposal_coeff,
+                                                     sdy = sdy[i])
+      if(n_skew != 0) logpostnew <- logpostnew +  logposterior_skew(x = x[n_skew_ind], yest = yestimate[i,n_skew_ind], mu = yskew_mu, yskew_sigma, yskew_lambda,
+                                                      coeff = proposal_coeff, sdy[i])
+      logpostnew = logpostnew + logprior(proposal_coeff)
 
       HR = exp(logpostnew -
                  logpostold)
@@ -318,18 +422,19 @@ run_MCMC <- function(nIter = 1000, obsmat = NULL, distrmat = NULL, coeff_inits, 
 
   ###  Function output
   output = list(data.frame(A = coefficients[,1],
-                           K = coefficients[,2],
+                           DKA = coefficients[,2],
                            M = coefficients[,3],
                            Q = coefficients[,4],
                            sdy = sdy,
                            logpost = logpost),
                 yestimate = yestimate,
-                sdyest = sdyest)
+                sdyest = sdyest,
+                lat = x)
   return(output)
 }
 
-
-
+### Next steps: implement uniform distributions, maybe with this accept-reject step:
+### https://arxiv.org/pdf/0907.4010.pdf
 
 nbin = 1
 ndbin = 1
@@ -380,6 +485,12 @@ points(x[2],ynorm_mu, col = "blue")
 points(rep(x[2],2),ynorm_mu+c(-2,2)*ynorm_sd, col = "blue", type = "l")
 points(x[3],yskew_mu, col = "red")
 
+####################################################################
+####
+####  TEST 1
+####
+####################################################################
+
 
 obsmat <- data.frame(cbind(c(15,15,15,50,50,50),c(1,1,1,2,2,2),c(28,33,34,18,14,22)))# column latitude, sample, temperature
 colnames(obsmat) <- c("latitude", "sample", "temperature")
@@ -401,6 +512,7 @@ system.time({ m1 <-  run_MCMC(nIter = nIter, obsmat = obsmat, distrmat = distrma
                               sdyest_inits = sdyest_inits,
                               prop_sd_coeff=prop_sd_coeff)
 })
+
 burnin = 25000+1
 
 nIter = nIter
@@ -431,29 +543,301 @@ error_polygon(latitude,grad_025,grad_975,rgb(0,0,0,0.15))
 for(i in 1:5) points(latitude,gradient(latitude,unlist(m1[[1]][sample(burnin:nIter,1),1:4]),0), type = "l", lwd = 2, col = rgb(0,0,0,0.3))
 
 
-for(d in 1) beanplot::beanplot(rnorm(2000,ynorm_mu[d],ynorm_sd[d]), add = T,
-                                 at = x[2], maxwidth = 5, side = "second",
+index <- 1
+
+for(d in index) beanplot::beanplot(rnorm(2000,as.numeric(distrmat[d,3]),as.numeric(distrmat[d,4])), add = T,
+                                 at = as.numeric(distrmat[d,1]), maxwidth = 5, side = "second",
                                  what = c(0,1,0,0), col = rgb(0,0.7,0.7,0.5), border = NA)
 
 z1 <- list(NULL)
 y1 <- list(NULL)
-yskew_rho <-  yskew_lambda/sqrt(1+yskew_lambda^2)
+yskew_rho <-  as.numeric(distrmat[,5])/sqrt(1+as.numeric(distrmat[,5])^2)
 N = 2000
-for(i in 1) {
-
-z1[[i]] <- truncnorm::rtruncnorm(n = N, a = 0, b = Inf, mean = 0, sd = 1)
+i1 <- 0
+for(d in 2) {
+i1=i1+1
+z1[[i1]] <- truncnorm::rtruncnorm(n = N, a = 0, b = Inf, mean = 0, sd = 1)
 #y1 <- epsilon1 + a1*z1 + rnorm(N,0,omega1)
-y1[[i]] <- yskew_mu[i] + yskew_sigma[i]*yskew_rho[i]*z1[[i]] + yskew_sigma[i]*sqrt(1-(yskew_rho[i]^2))*rnorm(N,0,1)
+y1[[i1]] <- as.numeric(distrmat[d,3]) + as.numeric(distrmat[d,4])*yskew_rho[d]*z1[[i1]] +
+  as.numeric(distrmat[d,4])*sqrt(1-(yskew_rho[d]^2))*rnorm(N,0,1)
 
+beanplot::beanplot(y1[[i1]], add = T,
+                   at = as.numeric(distrmat[d,1]), maxwidth = 5, side = "second",
+                   what = c(0,1,0,0), col = rgb(0,0.7,0.7,0.5), border = NA)
 }
 
-for(d in 1) beanplot::beanplot(y1[[d]], add = T,
-                               at = x[2+d], maxwidth = 5, side = "second",
-                               what = c(0,1,0,0), col = rgb(0,0.7,0.7,1), border = NA)
+for(i in unique(obsmat$sample)) {
+  subs <- subset(obsmat, sample == i)
+  points(subs$latitude,subs$temperature, pch = 4, bg = NA, col = rgb(0,0.5,0.85,0.67), cex = 2, lwd = 2)}
 
-np <- 3
+np <- ncol(m1[[2]])
 offset <- rep(0,np)
-points(x[1:np]+offset,apply(m1[[2]][burnin:nIter,1:np],2,mean), col = "red", pch = 19, cex = 1.25)
-sapply(1:np, function(a) points(c(x[a]+offset[a],x[a]+offset[a]),quantile(m1[[2]][burnin:nIter,a], probs = c(0.25,0.75)), type = "l", col= rgb(1,0,0,0.5), lwd =5))
-sapply(1:np, function(a) points(c(x[a]+offset[a],x[a]+offset[a]),quantile(m1[[2]][burnin:nIter,a], probs = c(0.125,0.875)), type = "l", col= rgb(1,0,0,0.5), lwd =3))
-sapply(1:np, function(a) points(c(x[a]+offset[a],x[a]+offset[a]),quantile(m1[[2]][burnin:nIter,a], probs = c(0.025,0.975)), type = "l", col= rgb(1,0,0,0.5), lwd =1))
+points(m1$lat+offset,apply(m1[[2]][burnin:nIter,1:np],2,mean), col = rgb(1,0,0,0.5), pch = 19, cex = 1.25)
+sapply(1:np, function(a) points(c(m1$lat[a]+offset[a],m1$lat[a]+offset[a]),quantile(m1[[2]][burnin:nIter,a], probs = c(0.25,0.75)), type = "l", col= rgb(1,0,0,0.5), lwd =5))
+sapply(1:np, function(a) points(c(m1$lat[a]+offset[a],m1$lat[a]+offset[a]),quantile(m1[[2]][burnin:nIter,a], probs = c(0.125,0.875)), type = "l", col= rgb(1,0,0,0.5), lwd =3))
+sapply(1:np, function(a) points(c(m1$lat[a]+offset[a],m1$lat[a]+offset[a]),quantile(m1[[2]][burnin:nIter,a], probs = c(0.025,0.975)), type = "l", col= rgb(1,0,0,0.5), lwd =1))
+
+
+
+####################################################################
+####
+####  TEST 2
+####
+####################################################################
+
+
+obsmat <- data.frame(cbind(c(15,15,15,50,50,50,25,25,25,25),c(1,1,1,2,2,2,3,3,3,3),c(45,38,34,18,17,26,30,38,41,44)))# column latitude, sample, temperature
+colnames(obsmat) <- c("latitude", "sample", "temperature")
+distrmat <- data.frame(cbind(c(5,30,35),c("normal","skew-normal","skew-normal"),c(35,30,25), c(4,4,3), c(NA,5,-7)))# column latitude, distribution, location, scale, shape
+colnames(distrmat) <- c("latitude", "distribution", "location", "scale", "shape")
+
+prop_sd_coeff <- c(3,3,3,0.1)
+coeff_inits = c(0,30,45,0.1)
+yest_inits = rep(25,length(unique(obsmat$sample))+nrow(distrmat)) #c(30,25,20,15,10,0,0)
+sdyest_inits = rep(2,length(unique(obsmat$sample)))
+
+
+nIter = 50000
+sdy_init = 1
+
+system.time({ m1 <-  run_MCMC(nIter = nIter, obsmat = obsmat, distrmat = distrmat,
+                              coeff_inits = coeff_inits,
+                              sdy_init = sdy_init, yest_inits = yest_inits,
+                              sdyest_inits = sdyest_inits,
+                              prop_sd_coeff=prop_sd_coeff)
+})
+
+burnin = 25000+1
+
+
+latitude <- 0:90
+sample_it <- sample((burnin):nIter,2000)
+grad_025 <- sapply(1:length(latitude), function(f) quantile(apply(m1[[1]][sample_it,1:4],1,function(a) gradient(x=latitude[f], coeff =  a, sdy = 0)), probs = 0.025))
+grad_975 <- sapply(1:length(latitude), function(f) quantile(apply(m1[[1]][sample_it,1:4],1,function(a) gradient(x=latitude[f], coeff =  a, sdy = 0)), probs = 0.975))
+
+plot(seq(0,90,0.1), gradient(seq(0,90,0.1), apply(m1[[1]][burnin:nIter,1:4],2,median), 0),
+     ylim = c(-1,60), type = "l", lwd = 3, ylab = "Temperature", xlab = "Latitude")
+### Calculate confidence intervals
+error_polygon(latitude,grad_025,grad_975,rgb(0,0,0,0.15))
+
+for(i in 1:5) points(latitude,gradient(latitude,unlist(m1[[1]][sample(burnin:nIter,1),1:4]),0), type = "l", lwd = 2, col = rgb(0,0,0,0.3))
+
+
+index <- 1
+
+for(d in index) beanplot::beanplot(rnorm(2000,as.numeric(distrmat[d,3]),as.numeric(distrmat[d,4])), add = T,
+                                   at = as.numeric(distrmat[d,1]), maxwidth = 5, side = "second",
+                                   what = c(0,1,0,0), col = rgb(0,0.7,0.7,0.6), border = NA)
+
+z1 <- list(NULL)
+y1 <- list(NULL)
+yskew_rho <-  as.numeric(distrmat[,5])/sqrt(1+as.numeric(distrmat[,5])^2)
+N = 2000
+i1 <- 0
+for(d in 2:3) {
+  i1=i1+1
+  z1[[i1]] <- truncnorm::rtruncnorm(n = N, a = 0, b = Inf, mean = 0, sd = 1)
+  #y1 <- epsilon1 + a1*z1 + rnorm(N,0,omega1)
+  y1[[i1]] <- as.numeric(distrmat[d,3]) + as.numeric(distrmat[d,4])*yskew_rho[d]*z1[[i1]] +
+    as.numeric(distrmat[d,4])*sqrt(1-(yskew_rho[d]^2))*rnorm(N,0,1)
+
+  beanplot::beanplot(y1[[i1]], add = T,
+                     at = as.numeric(distrmat[d,1]), maxwidth = 5, side = "second",
+                     what = c(0,1,0,0), col = rgb(0,0.7,0.7,0.6), border = NA)
+}
+
+for(i in unique(obsmat$sample)) {
+  subs <- subset(obsmat, sample == i)
+  points(subs$latitude,subs$temperature, pch = 4, bg = NA, col = rgb(0,0.5,0.85,0.67), cex = 2, lwd = 2)}
+
+np <- ncol(m1[[2]])
+offset <- rep(0,np)
+points(m1$lat+offset,apply(m1[[2]][burnin:nIter,1:np],2,mean), col = rgb(1,0,0,0.5), pch = 19, cex = 1.25)
+sapply(1:np, function(a) points(c(m1$lat[a]+offset[a],m1$lat[a]+offset[a]),quantile(m1[[2]][burnin:nIter,a], probs = c(0.25,0.75)), type = "l", col= rgb(1,0,0,0.5), lwd =5))
+sapply(1:np, function(a) points(c(m1$lat[a]+offset[a],m1$lat[a]+offset[a]),quantile(m1[[2]][burnin:nIter,a], probs = c(0.125,0.875)), type = "l", col= rgb(1,0,0,0.5), lwd =3))
+sapply(1:np, function(a) points(c(m1$lat[a]+offset[a],m1$lat[a]+offset[a]),quantile(m1[[2]][burnin:nIter,a], probs = c(0.025,0.975)), type = "l", col= rgb(1,0,0,0.5), lwd =1))
+
+
+
+
+
+####################################################################
+####
+####  TEST 3
+####
+####################################################################
+
+
+obsmat <- data.frame(cbind(c(15,15,15,50,50,50,25,25,25),c(1,1,1,2,2,2,3,3,3),c(45,38,34,18,17,16,30,32,34)))# column latitude, sample, temperature
+colnames(obsmat) <- c("latitude", "sample", "temperature")
+distrmat <- data.frame(cbind(c(5,30,35),c("normal","skew-normal","skew-normal"),c(15,27,30), c(5,4,3), c(NA,5,-7)))# column latitude, distribution, location, scale, shape
+colnames(distrmat) <- c("latitude", "distribution", "location", "scale", "shape")
+
+prop_sd_coeff <- c(3,3,3,0.1)
+coeff_inits = c(0,30,45,0.1)
+yest_inits = rep(25,length(unique(obsmat$sample))+nrow(distrmat)) #c(30,25,20,15,10,0,0)
+sdyest_inits = rep(2,length(unique(obsmat$sample)))
+
+
+nIter = 50000
+sdy_init = 1
+
+system.time({ m1 <-  run_MCMC(nIter = nIter, obsmat = obsmat, distrmat = distrmat,
+                              coeff_inits = coeff_inits,
+                              sdy_init = sdy_init, yest_inits = yest_inits,
+                              sdyest_inits = sdyest_inits,
+                              prop_sd_coeff=prop_sd_coeff)
+})
+
+burnin = 25000+1
+
+
+latitude <- 0:90
+sample_it <- sample((burnin):nIter,2000)
+grad_025 <- sapply(1:length(latitude), function(f) quantile(apply(m1[[1]][sample_it,1:4],1,function(a) gradient(x=latitude[f], coeff =  a, sdy = 0)), probs = 0.025))
+grad_975 <- sapply(1:length(latitude), function(f) quantile(apply(m1[[1]][sample_it,1:4],1,function(a) gradient(x=latitude[f], coeff =  a, sdy = 0)), probs = 0.975))
+
+plot(seq(0,90,0.1), gradient(seq(0,90,0.1), apply(m1[[1]][burnin:nIter,1:4],2,median), 0),
+     ylim = c(-1,60), type = "l", lwd = 3, ylab = "Temperature", xlab = "Latitude")
+### Calculate confidence intervals
+error_polygon(latitude,grad_025,grad_975,rgb(0,0,0,0.15))
+
+for(i in 1:5) points(latitude,gradient(latitude,unlist(m1[[1]][sample(burnin:nIter,1),1:4]),0), type = "l", lwd = 2, col = rgb(0,0,0,0.3))
+
+
+index <- 1
+
+for(d in index) beanplot::beanplot(rnorm(2000,as.numeric(distrmat[d,3]),as.numeric(distrmat[d,4])), add = T,
+                                   at = as.numeric(distrmat[d,1]), maxwidth = 5, side = "second",
+                                   what = c(0,1,0,0), col = rgb(0,0.7,0.7,0.6), border = NA)
+
+z1 <- list(NULL)
+y1 <- list(NULL)
+yskew_rho <-  as.numeric(distrmat[,5])/sqrt(1+as.numeric(distrmat[,5])^2)
+N = 2000
+i1 <- 0
+for(d in 2:3) {
+  i1=i1+1
+  z1[[i1]] <- truncnorm::rtruncnorm(n = N, a = 0, b = Inf, mean = 0, sd = 1)
+  #y1 <- epsilon1 + a1*z1 + rnorm(N,0,omega1)
+  y1[[i1]] <- as.numeric(distrmat[d,3]) + as.numeric(distrmat[d,4])*yskew_rho[d]*z1[[i1]] +
+    as.numeric(distrmat[d,4])*sqrt(1-(yskew_rho[d]^2))*rnorm(N,0,1)
+
+  beanplot::beanplot(y1[[i1]], add = T,
+                     at = as.numeric(distrmat[d,1]), maxwidth = 5, side = "second",
+                     what = c(0,1,0,0), col = rgb(0,0.7,0.7,0.6), border = NA)
+}
+
+for(i in unique(obsmat$sample)) {
+  subs <- subset(obsmat, sample == i)
+  points(subs$latitude,subs$temperature, pch = 4, bg = NA, col = rgb(0,0.5,0.85,0.67), cex = 2, lwd = 2)}
+
+np <- ncol(m1[[2]])
+offset <- rep(0,np)
+points(m1$lat+offset,apply(m1[[2]][burnin:nIter,1:np],2,mean), col = rgb(1,0,0,0.5), pch = 19, cex = 1.25)
+sapply(1:np, function(a) points(c(m1$lat[a]+offset[a],m1$lat[a]+offset[a]),quantile(m1[[2]][burnin:nIter,a], probs = c(0.25,0.75)), type = "l", col= rgb(1,0,0,0.5), lwd =5))
+sapply(1:np, function(a) points(c(m1$lat[a]+offset[a],m1$lat[a]+offset[a]),quantile(m1[[2]][burnin:nIter,a], probs = c(0.125,0.875)), type = "l", col= rgb(1,0,0,0.5), lwd =3))
+sapply(1:np, function(a) points(c(m1$lat[a]+offset[a],m1$lat[a]+offset[a]),quantile(m1[[2]][burnin:nIter,a], probs = c(0.025,0.975)), type = "l", col= rgb(1,0,0,0.5), lwd =1))
+
+
+####################################################################
+####
+####  TEST with Cambrian (Stage 3) ooid data
+####
+####################################################################
+
+ooid <- read.csv("D://OneDrive - Durham University/projects/ooids/ooid_data_set_samples_processed.csv")
+
+datum1 <- subset(ooid, age_ori == "Cambrian\n(Series 2/Atdabanian)" & location == "Northeastern Armorican\nMassif, France")
+datum2 <- subset(ooid, age_ori == "Cambrian\n(Series 2/Atdabanian)" & location == "Flinders Range\nSouth Australia")
+coord1 <- c(3,48) # "Amorican massif
+coord2 <- c(138.7, -31.5) # Flinders range
+
+ooidsubs <- rbind(datum1,datum2)
+
+pallat_ooid <- c(abs(c(-46.34,16.42)))
+
+distrmat <- data.frame(cbind(pallat_ooid,c("skew-normal","skew-normal"),ooidsubs$mu, ooidsubs$sigma, ooidsubs$lambda))# column latitude, distribution, location, scale, shape
+colnames(distrmat) <- c("latitude", "distribution", "location", "scale", "shape")
+
+isot <- read.csv(
+  "D://OneDrive - Durham University/projects/isotopes/GrossmanJoachimski2022SI/Isotope_Grossmann_Joachimski_ScienfiticReports2022.csv",
+  fileEncoding = "latin1")
+isots <- subset(isot,stage_2020 == "Age 3")
+
+### Hays no trend, seawater d18 O of -1.08:
+isots_t <- 15.7 - 4.36*(isots$sauerstof_isotop_permille - isots$d18Osw..iceV) + 0.12*(isots$sauerstof_isotop_permille-0.6-isots$d18Osw..iceV)^2
+pallat_iso <- rep(abs(-0.92),length(isots_t))
+obsmat <- data.frame(cbind(pallat_iso,rep(1,nrow(isots)), isots_t))# column latitude, sample, temperature
+colnames(obsmat) <- c("latitude", "sample", "temperature")
+
+prop_sd_coeff <- c(3,3,3,0.1)
+coeff_inits = c(0,30,45,0.1)
+yest_inits = rep(25,length(unique(obsmat$sample))+nrow(distrmat)) #c(30,25,20,15,10,0,0)
+sdyest_inits = rep(2,length(unique(obsmat$sample)))
+
+
+nIter = 50000
+sdy_init = 1
+
+system.time({ m1 <-  run_MCMC(nIter = nIter, obsmat = obsmat, distrmat = distrmat,
+                              coeff_inits = coeff_inits,
+                              sdy_init = sdy_init, yest_inits = yest_inits,
+                              sdyest_inits = sdyest_inits,
+                              prop_sd_coeff=prop_sd_coeff)
+})
+
+burnin = 25000+1
+
+
+latitude <- 0:90
+sample_it <- sample((burnin):nIter,2000)
+grad_025 <- sapply(1:length(latitude), function(f) quantile(apply(m1[[1]][sample_it,1:4],1,function(a) gradient(x=latitude[f], coeff =  a, sdy = 0)), probs = 0.025))
+grad_975 <- sapply(1:length(latitude), function(f) quantile(apply(m1[[1]][sample_it,1:4],1,function(a) gradient(x=latitude[f], coeff =  a, sdy = 0)), probs = 0.975))
+
+plot(seq(0,90,0.1), gradient(seq(0,90,0.1), apply(m1[[1]][burnin:nIter,1:4],2,median),0), xlim = c(0,90),
+     ylim = c(-1,65), type = "l", lwd = 3, ylab = "Temperature", xlab = "Latitude", "Cambrian - Stage 3")
+### Calculate confidence intervals
+error_polygon(latitude,grad_025,grad_975,rgb(0,0,0,0.15))
+
+for(i in 1:5) points(latitude,gradient(latitude,unlist(m1[[1]][sample(burnin:nIter,1),1:4]),0), type = "l", lwd = 2, col = rgb(0,0,0,0.3))
+
+
+#index <- 1
+
+#for(d in index) beanplot::beanplot(rnorm(2000,as.numeric(distrmat[d,3]),as.numeric(distrmat[d,4])), add = T,
+#                                   at = as.numeric(distrmat[d,1]), maxwidth = 5, side = "second",
+#                                   what = c(0,1,0,0), col = rgb(0,0.7,0.7,0.6), border = NA)
+
+z1 <- list(NULL)
+y1 <- list(NULL)
+yskew_rho <-  as.numeric(distrmat[,5])/sqrt(1+as.numeric(distrmat[,5])^2)
+N = 4000
+i1 <- 0
+beancols <- c( rgb(0.40,0.8,0,0.6), rgb(0,0.7,0.7,0.6))
+for(d in 1:2) {
+  i1=i1+1
+  z1[[i1]] <- truncnorm::rtruncnorm(n = N, a = 0, b = Inf, mean = 0, sd = 1)
+  #y1 <- epsilon1 + a1*z1 + rnorm(N,0,omega1)
+  y1[[i1]] <- as.numeric(distrmat[d,3]) + as.numeric(distrmat[d,4])*yskew_rho[d]*z1[[i1]] +
+    as.numeric(distrmat[d,4])*sqrt(1-(yskew_rho[d]^2))*rnorm(N,0,1)
+
+  beanplot::beanplot(y1[[i1]], add = T,
+                     at = as.numeric(distrmat[d,1]), maxwidth = 5, side = "second",
+                     what = c(0,1,0,0), col = beancols[d], border = NA)
+}
+
+for(i in unique(obsmat$sample)) {
+  subs <- subset(obsmat, sample == i)
+  points(subs$latitude,subs$temperature, pch = 4, bg = NA, col = rgb(0,0.5,0.85,0.67), cex = 2, lwd = 2)}
+
+np <- ncol(m1[[2]])
+offset <- rep(0,np)
+points(m1$lat+offset,apply(m1[[2]][burnin:nIter,1:np],2,mean), col = rgb(1,0,0,0.5), pch = 19, cex = 1.25)
+sapply(1:np, function(a) points(c(m1$lat[a]+offset[a],m1$lat[a]+offset[a]),quantile(m1[[2]][burnin:nIter,a], probs = c(0.25,0.75)), type = "l", col= rgb(1,0,0,0.5), lwd =5))
+sapply(1:np, function(a) points(c(m1$lat[a]+offset[a],m1$lat[a]+offset[a]),quantile(m1[[2]][burnin:nIter,a], probs = c(0.125,0.875)), type = "l", col= rgb(1,0,0,0.5), lwd =3))
+sapply(1:np, function(a) points(c(m1$lat[a]+offset[a],m1$lat[a]+offset[a]),quantile(m1[[2]][burnin:nIter,a], probs = c(0.025,0.975)), type = "l", col= rgb(1,0,0,0.5), lwd =1))
+
+legend("topright",legend=c("regression line", "temperature estimate","dO18 data", "aragonitic giant ooids", "calcitic ooids"),
+       cex = 0.8, col = c("black", "red", rgb(0,0.5,0.85,.67),  beancols[1], beancols[2]), lwd = c(2,NA,NA,6,6),
+       pch = c(NA,19,4,NA,NA), pt.cex = c(NA,1.25,2,NA,NA))
