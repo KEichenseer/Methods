@@ -134,6 +134,7 @@ a1 <- 4
 
 mu0 <- 1
 var0 <- 2^2
+n <- 1
 
 x<-mu1
 sigma <-sd1
@@ -181,6 +182,10 @@ hist(y1,seq(-100,100,0.1), xlim = c(-2,9), ylim = c(0,2000), add = F, col = rgb(
 
 hist(rnorm(50000,mu0,sqrt(var0)),breaks = seq(-100,100,0.1),col = rgb(0,1,0,0.2),add = T)
 hist(mu[1:50000],breaks = seq(-100,100,0.1), xlim = c(-3,3), add = T, col = rgb(0,0,1,0.33))
+
+
+xseq <- seq(-2,8.5,0.01)
+plot(xseq,2/sd1*dnorm((xseq-mu1)/sd1)*pnorm(a1*(xseq-mu1)/sd1), type = "l", lty = 2, lwd = 2, col = "red")
 
 
 

@@ -7,7 +7,7 @@ gradient <- function(x, coeff, sdy) { # sigma is labelled "sdy"
   return(A + max(c(K-A,0))/((1+(exp(Q*(x-M))))) + rnorm(length(x),0,sdy))
 }
 
-loglik <- function(x, ymean, yest, sdyest, coeff, sdy) {
+loglik_norm <- function(x, yest, ymean, sdyest, coeff, sdy) {
   # extract regression coefficients
   coeff = unlist(coeff)
   A = coeff[1]
@@ -16,6 +16,7 @@ loglik <- function(x, ymean, yest, sdyest, coeff, sdy) {
   Q = coeff[4]
   # likelihood for yest - oxygen isotope data normal distributed
   ll1 <- sum(dnorm(yest, ymean, sdyest,log=TRUE),na.rm=T)
+
   # likelihood for yest - other PDFs
   # likelihood for
   #ll1b <- sum(dunif(yest[1],20,40, log = TRUE),
@@ -24,6 +25,28 @@ loglik <- function(x, ymean, yest, sdyest, coeff, sdy) {
   ll2 <- sum(dnorm(yest, mean = pred, sd = sdy, log = TRUE))
   return(c(ll2+ll1))
 }
+
+
+loglik_skew <- function(x, yest, mu, sigma, lambda, coeff, sdy) {
+  # extract regression coefficients
+  coeff = unlist(coeff)
+  A = coeff[1]
+  K = coeff[2]
+  M = coeff[3]
+  Q = coeff[4]
+  # likelihood for yest - oxygen isotope data normal distributed
+  ll1 <- sum(log(2/sigma)+dnorm((yest-mu)/sigma,log=T)+pnorm(lambda*(yest-mu)/sigma,log=T))
+
+
+  # likelihood for yest - other PDFs
+  # likelihood for
+  #ll1b <- sum(dunif(yest[1],20,40, log = TRUE),
+  #            dnorm(yest[6],6,5, log = TRUE))
+  pred = A + max(c(K-A,0))/((1+(exp(Q*(x-M)))))
+  ll2 <- sum(dnorm(yest, mean = pred, sd = sdy, log = TRUE))
+  return(c(ll2+ll1))
+}
+
 
 logprior <- function(coeff) {
   coeff = unlist(coeff)
@@ -34,24 +57,36 @@ logprior <- function(coeff) {
     dlnorm(coeff[4], -2.2, 0.8, log = TRUE))))
 }
 
-logposterior <- function(x, ymean, yest, sdyest, coeff, sdy){
-  return (loglik(x, ymean, yest, sdyest, coeff, sdy) + logprior(coeff))
+logposterior_norm <- function(x, yest, ymean, sdyest, coeff, sdy){
+  return (loglik_norm(x, yest, ymean, sdyest, coeff, sdy))
+}
+
+logposterior_skew <- function(x, yest, mu, sigma, lambda, coeff, sdy){
+  return (loglik_skew(x, yest, mu, sigma, lambda, coeff, sdy))
 }
 
 MH_propose_coeff <- function(coeff, prop_sd_coeff){
   return(rnorm(4,mean = coeff, sd= prop_sd_coeff))
 }
-MH_propose_yest <- function(yest, prop_sd_yest){
-  return(mvnfast::rmvn(1,mu = yest, sigma = prop_sd_yest))
-}
+#MH_propose_yest <- function(yest, prop_sd_yest){
+#  return(mvnfast::rmvn(1,mu = yest, sigma = prop_sd_yest))
+#}
 
 # Gibbs sampling of mu with skew normal likelihood and normal prior
+### this is for single observations, so no mean(x) or mean(y)
 skew_mu <- function(x, y, sigma, rho, mu_prior, sigma_prior) {
-
-  rnorm(1,(n*sigma_prior^2*(mean(x)-sigma*rho*mean(y))+sigma^2*(1-rho^2)*mu_prior)/
-          (n*sigma_prior^2+sigma^2*(1-rho^2)),
-        sqrt((sigma_prior^2*sigma^2*(1-rho^2))/(n*sigma_prior^2+sigma^2*(1-rho^2))) )
+  n1 = 1
+  rnorm(length(x),(n1*sigma_prior^2*(x-sigma*rho*y)+sigma^2*(1-rho^2)*mu_prior)/
+          (n1*sigma_prior^2+sigma^2*(1-rho^2)),
+        sqrt((sigma_prior^2*sigma^2*(1-rho^2))/(n1*sigma_prior^2+sigma^2*(1-rho^2))) )
+  #rnorm(length(x),(n1*sigma_prior^2*((x)-sigma*rho*(y))+sigma^2*(1-rho^2)*mu_prior)/
+  #        (n1*sigma_prior^2+sigma^2*(1-rho^2)),
+  #      sqrt((sigma_prior^2*sigma^2*(1-rho^2))/(n1*sigma_prior^2+sigma^2*(1-rho^2))) )
 }
+
+
+
+
 
 # function for plotting the 95 % CI shading
 error_polygon <- function(x,en,ep,color) {
@@ -61,8 +96,8 @@ error_polygon <- function(x,en,ep,color) {
 }
 #
 # Main MCMCM function
-run_MCMC <- function(nIter, x, yobs, yd_mu, yd_sd, coeff_inits, sdy_init, yest_inits, sdyest_inits,
-                     prop_sd_coeff, prop_sd_yest, quiet = FALSE){
+run_MCMC <- function(nIter, x, ylist, ynorm_mu, ynorm_sd, yskew_mu, yskew_sigma, yskew_lambda, coeff_inits, sdy_init, yest_inits, sdyest_inits,
+                     prop_sd_coeff, quiet = FALSE){
   ### Initialisation
   coefficients = array(dim = c(nIter,4)) # set up array to store coefficients
   coefficients[1,] = coeff_inits # initialise coefficients
@@ -70,13 +105,19 @@ run_MCMC <- function(nIter, x, yobs, yd_mu, yd_sd, coeff_inits, sdy_init, yest_i
   sdy[1] = sdy_init # intialise sdy
 
 
-  n_p <- length(yobs)
+  n_p <- length(ylist)
 
-  n_d <- length(yd_mu)
+  n_p_ind <- 1:n_p
 
-  n_d_ind <- (n_p+1):(n_p+n_d)
+  n_norm <- length(ynorm_mu)
 
-  nbin <- n_p + length(yd_mu)
+  n_norm_ind <- (n_p+1):(n_p+n_norm)
+
+  n_skew <- length(yskew_mu)
+
+  n_skew_ind <- (n_p+n_norm+1):(n_p+n_norm+n_skew)
+
+  nbin <- n_p + n_norm + n_skew
 
   yestimate = array(dim = c(nIter,nbin)) # set up array to store coefficients
   yestimate[1,] = yest_inits # initialise coefficients
@@ -93,19 +134,21 @@ run_MCMC <- function(nIter, x, yobs, yd_mu, yd_sd, coeff_inits, sdy_init, yest_i
   A_sdyest = 1 # parameter for the prior on the inverse gamma distribution of sdyest
   B_sdyest = 1 # parameter for the prior on the inverse gamma distribution of sdyest
   ####
-  yn = sapply(yobs,length)
+  yn = sapply(ylist,length)
   #yn[which(is.na(yobs))] = NA
   shape_sdyest =  A_sdyest+yn/2 # shape parameter for the inverse gamma
   ### n-1?!
-  ymean = c(sapply(yobs,mean),yd_mu) # mean of observations and means of given distributions
-  yvar = sapply(yobs,var)
+  ymean = c(sapply(ylist,mean),ynorm_mu) # mean of observations and means of given distributions
+  yvar = sapply(ylist,var)
   #yvar[which(is.na(yvar))] <- max(yvar,na.rm=T)
-  sumobs <- sapply(yobs,sum)
+  sumobs <- sapply(ylist,sum)
+
+  yskew_rho <- -yskew_lambda/sqrt(1+yskew_lambda^2)
 
   logpost = rep(NA,nIter)
 
   # start progress bar
-  if (!quiet) cli::cli_progress_bar('Sampling', total = nIter)
+  #if (!quiet) cli::cli_progress_bar('Sampling', total = nIter)
   ### The MCMC loop
   for (i in 2:nIter){
     # update progress bar
@@ -125,22 +168,23 @@ run_MCMC <- function(nIter, x, yobs, yd_mu, yd_sd, coeff_inits, sdy_init, yest_i
     ## 1.1.b Gibbs step to estimate sdyest
     for(j in 1:n_p) sdyest[i,j] = sqrt(1/rgamma(1,
                                                 shape_sdyest[j],
-                                                (B_sdyest+0.5*sum((yobs[[j]]-yestimate[i,j])^2))))
+                                                (B_sdyest+0.5*sum((ylist[[j]]-yestimate[i,j])^2))))
 
     ### 1.2. Gibbs steps for data that have sample mean and sd given (estimate global mean only)
     ## 1.2.a Gibbs step to estimate yestimate
     ### distribution from here: https://people.eecs.berkeley.edu/~jordan/courses/260-spring10/lectures/lecture5.pdf
-    yestimate[i,n_d_ind] = rnorm(n_d,
-                                 sdy[i-1]^2/(yd_sd^2+sdy[i-1]^2)*yd_mu + yd_sd^2/(yd_sd^2+sdy[i-1]^2)*pred[n_d_ind],
-                                 sqrt(1/sdy[i-1]^2 + 1/yd_sd^2))
+    yestimate[i,n_norm_ind] = rnorm(n_norm,
+                                 sdy[i-1]^2/(ynorm_sd^2+sdy[i-1]^2)*ynorm_mu + ynorm_sd^2/(ynorm_sd^2+sdy[i-1]^2)*pred[n_norm_ind],
+                                 sqrt(1/sdy[i-1]^2 + 1/ynorm_sd^2))
 
     ### 1.3. Gibbs steps for data that have location, scale and shape parameter given (skew-normal). Estimate global mean only)
     ## 1.3.a Gibbs step to estimate yestimate
     ### distribution from here: http://koreascience.or.kr/article/JAKO200504840590864.pdf
     z <- (yskew_mu - yestimate[i-1,n_skew_ind])/yskew_sigma
-    y <- truncnorm::rtruncnorm(n,0,Inf,rho*z,sqrt(1-rho^2))
-    yestimate[i,n_skew_ind] = skew_mu(x=yskew_mu[i-1,], y=y, sigma=yskew_sigma, rho=yskew_rho,
-                                      mu_prior=pred[n_d_ind], sigma_prior=sdy[i-1])
+    y <- truncnorm::rtruncnorm(n_skew,0,Inf,yskew_rho*z,sqrt(1-yskew_rho^2))
+    yestimate[i,n_skew_ind] = skew_mu(x=yskew_mu, y=y, sigma=yskew_sigma, rho=yskew_rho,
+                                      mu_prior=pred[n_skew_ind], sigma_prior=sdy[i-1])
+
 
 
     ### 3. Gibbs step to estimate sdy
@@ -172,12 +216,21 @@ run_MCMC <- function(nIter, x, yobs, yd_mu, yd_sd, coeff_inits, sdy_init, yest_i
 
     if(any(proposal_coeff[4] <= 0)) HR = 0 else {# Q needs to be >0
       # Hastings ratio of the proposal
-      logpostold = logposterior(x = x, ymean = ymean, yest = yestimate[i,],
-                                sdyest = c(sdyest[i,],yd_sd), coeff = coefficients[i-1,],
-                                sdy = sdy[i])
-      logpostnew = logposterior(x = x, ymean = ymean, yest = yestimate[i,],
-                                sdyest = c(sdyest[i,],yd_sd), coeff = proposal_coeff,
-                                sdy = sdy[i])
+      logpostold = logposterior_norm(x = x[c(n_p_ind,n_norm_ind)], yest = yestimate[i,c(n_p_ind,n_norm_ind)], ymean = ymean,
+                                sdyest = c(sdyest[i,],ynorm_sd), coeff = coefficients[i-1,],
+                                sdy = sdy[i]) +
+                   logposterior_skew(x = x[n_skew_ind], yest = yestimate[i,n_skew_ind], mu = yskew_mu, yskew_sigma, yskew_lambda,
+                                     coeff = coefficients[i-1,], sdy[i]) +
+                   logprior(coefficients[i-1,])
+
+
+      logpostnew = logposterior_norm(x = x[c(n_p_ind,n_norm_ind)], yest = yestimate[i,c(n_p_ind,n_norm_ind)], ymean = ymean,
+                                     sdyest = c(sdyest[i,],ynorm_sd), coeff = proposal_coeff,
+                                     sdy = sdy[i]) +
+                   logposterior_skew(x = x[n_skew_ind], yest = yestimate[i,n_skew_ind], mu = yskew_mu, yskew_sigma, yskew_lambda,
+                          coeff = proposal_coeff, sdy[i]) +
+                   logprior(proposal_coeff)
+
       HR = exp(logpostnew -
                  logpostold)
     }
@@ -222,3 +275,122 @@ run_MCMC <- function(nIter, x, yobs, yd_mu, yd_sd, coeff_inits, sdy_init, yest_i
                 sdyest = sdyest)
   return(output)
 }
+
+
+
+
+nbin = 1
+ndbin = 1
+nsbin = 1
+#prop_sd_yest <- matrix(0.01,nrow = nbin, ncol = nbin)
+#diag(prop_sd_yest) <- 0.5
+prop_sd_coeff <- c(3,3,3,0.1)
+
+coeff_inits = c(0,30,45,0.1)
+yest_inits = rep(25,nbin+ndbin+nsbin) #c(30,25,20,15,10,0,0)
+sdyest_inits = rep(2,nbin)
+
+x <- c(60,50,10)
+
+yobs <- rnorm(3,10,2)
+ylist <- list(yobs)
+ynorm_mu <- 20
+ynorm_sd <- 2
+
+yskew_mu <- 32 # c(35,32,20)
+yskew_sigma <- 9.3 # c(1,2,3)
+yskew_lambda <- 2.00000000000000 #c(4,3,5)
+
+
+xseq <- seq(15,45,0.1)
+s = 1
+plot(xseq,2/sd1*dnorm((xseq-yskew_mu[s])/yskew_sigma[s])*pnorm(yskew_lambda[s]*(xseq-yskew_mu[s])/yskew_sigma[s]),
+       type = "l", lty = 1, lwd = 2, col = rgb(0,0,1,0.5))
+s = 2
+points(xseq,2/sd1*dnorm((xseq-yskew_mu[s])/yskew_sigma[s])*pnorm(yskew_lambda[s]*(xseq-yskew_mu[s])/yskew_sigma[s]),
+     type = "l", lty = 1, lwd = 2, col = rgb(0,.8,.8,0.5))
+
+s = 3
+points(xseq,2/sd1*dnorm((xseq-yskew_mu[s])/yskew_sigma[s])*pnorm(yskew_lambda[s]*(xseq-yskew_mu[s])/yskew_sigma[s]),
+       type = "l", lty = 1, lwd = 2, col = rgb(0,.9,0,0.5))
+
+
+#nbin = 4
+#x <- c(30,40,50,60,10,20,70)
+#npb <- c(5,5,5,3)
+#ym <- (c(25,18,15,25))
+#ysd <- c(1,1,1,5)
+#y <- lapply(1:nbin, function(x) rnorm(npb[x],ym[x],ysd[x]))
+#y[which(npb==0)] <- NA
+plot(0,0,xlim = c(0,90), ylim = c(-1,40), type = "n",xlab = "latitude", ylab = "temperature")
+points(rep(x[1],length(yobs)),yobs)
+points(x[2],ynorm_mu, col = "blue")
+points(rep(x[2],2),ynorm_mu+c(-2,2)*ynorm_sd, col = "blue", type = "l")
+points(x[3],yskew_mu, col = "red")
+
+nIter = 50000
+sdy_init = 1
+
+system.time({ m1 <-  run_MCMC(nIter = nIter, x = x, ylist = ylist, ynorm_mu = ynorm_mu,ynorm_sd = ynorm_sd,
+                              yskew_mu  = yskew_mu, yskew_sigma = yskew_sigma, yskew_lambda = yskew_lambda,
+                              coeff_inits = coeff_inits,
+                              sdy_init = sdy_init, yest_inits = yest_inits,
+                              sdyest_inits = sdyest_inits,
+                              prop_sd_coeff=prop_sd_coeff)
+})
+burnin = 25000+1
+
+nIter = nIter
+x = x
+ylist = ylist
+ynorm_mu = ynorm_mu
+ynorm_sd = ynorm_sd
+yskew_mu  = yskew_mu
+yskew_sigma = yskew_sigma
+yskew_lambda = yskew_lambda
+coeff_inits = coeff_inits
+sdy_init = sdy_init
+yest_inits = yest_inits
+sdyest_inits = sdyest_inits
+prop_sd_coeff=prop_sd_coeff
+
+
+latitude <- 0:90
+sample_it <- sample((burnin+1):nIter,2000)
+grad_025 <- sapply(1:length(latitude), function(f) quantile(apply(m1[[1]][sample_it,1:4],1,function(a) gradient(x=latitude[f], coeff =  a, sdy = 0)), probs = 0.025))
+grad_975 <- sapply(1:length(latitude), function(f) quantile(apply(m1[[1]][sample_it,1:4],1,function(a) gradient(x=latitude[f], coeff =  a, sdy = 0)), probs = 0.975))
+
+plot(seq(0,90,0.1), gradient(seq(0,90,0.1), apply(m1[[1]][burnin:nIter,1:4],2,median), 0),
+     ylim = c(-1,60), type = "l", lwd = 3, ylab = "Temperature", xlab = "Latitude")
+### Calculate confidence intervals
+error_polygon(latitude,grad_025,grad_975,rgb(0,0,0,0.15))
+
+for(i in 1:5) points(latitude,gradient(latitude,unlist(m1[[1]][sample(burnin:nIter,1),1:4]),0), type = "l", lwd = 2, col = rgb(0,0,0,0.3))
+
+
+for(d in 1) beanplot::beanplot(rnorm(2000,ynorm_mu[d],ynorm_sd[d]), add = T,
+                                 at = x[2], maxwidth = 5, side = "second",
+                                 what = c(0,1,0,0), col = rgb(0,0.7,0.7,0.5), border = NA)
+
+z1 <- list(NULL)
+y1 <- list(NULL)
+yskew_rho <-  yskew_lambda/sqrt(1+yskew_lambda^2)
+N = 2000
+for(i in 1) {
+
+z1[[i]] <- truncnorm::rtruncnorm(n = N, a = 0, b = Inf, mean = 0, sd = 1)
+#y1 <- epsilon1 + a1*z1 + rnorm(N,0,omega1)
+y1[[i]] <- yskew_mu[i] + yskew_sigma[i]*yskew_rho[i]*z1[[i]] + yskew_sigma[i]*sqrt(1-(yskew_rho[i]^2))*rnorm(N,0,1)
+
+}
+
+for(d in 1) beanplot::beanplot(y1[[d]], add = T,
+                               at = x[2+d], maxwidth = 5, side = "second",
+                               what = c(0,1,0,0), col = rgb(0,0.7,0.7,1), border = NA)
+
+np <- 3
+offset <- rep(0,np)
+points(x[1:np]+offset,apply(m1[[2]][burnin:nIter,1:np],2,mean), col = "red", pch = 19, cex = 1.25)
+sapply(1:np, function(a) points(c(x[a]+offset[a],x[a]+offset[a]),quantile(m1[[2]][burnin:nIter,a], probs = c(0.25,0.75)), type = "l", col= rgb(1,0,0,0.5), lwd =5))
+sapply(1:np, function(a) points(c(x[a]+offset[a],x[a]+offset[a]),quantile(m1[[2]][burnin:nIter,a], probs = c(0.125,0.875)), type = "l", col= rgb(1,0,0,0.5), lwd =3))
+sapply(1:np, function(a) points(c(x[a]+offset[a],x[a]+offset[a]),quantile(m1[[2]][burnin:nIter,a], probs = c(0.025,0.975)), type = "l", col= rgb(1,0,0,0.5), lwd =1))
