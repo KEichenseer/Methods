@@ -1,62 +1,62 @@
-gradient <- function(x, coeff, sdy) { # sigma is labelled "sdy"
-  coeff = unlist(coeff)
-  A = coeff[1]
-  K = coeff[2]
-  M = coeff[3]
-  Q = coeff[4]
-  return(A + max(c(K-A,0))/((1+(exp(Q*(x-M))))) + rnorm(length(x),0,sdy))
-}
-
-
-loglik_norm <- function(x, yest, ymean, sdyest, coeff, sdy) {
-  # extract regression coefficients
-  coeff = unlist(coeff)
-  A = coeff[1]
-  K = coeff[2]
-  M = coeff[3]
-  Q = coeff[4]
-  # likelihood for yest - oxygen isotope data normal distributed
-  ll1 <- sum(dnorm(yest, ymean, sdyest,log=TRUE),na.rm=T)
-
-  # likelihood for yest - other PDFs
-  # likelihood for
-  #ll1b <- sum(dunif(yest[1],20,40, log = TRUE),
-  #            dnorm(yest[6],6,5, log = TRUE))
-  pred = A + max(c(K-A,0))/((1+(exp(Q*(x-M)))))
-  ll2 <- sum(dnorm(yest, mean = pred, sd = sdy, log = TRUE))
-  return(c(ll2+ll1))
-}
-
-
-loglik_skew <- function(x, yest, mu, sigma, lambda, coeff, sdy) {
-  # extract regression coefficients
-  coeff = unlist(coeff)
-  A = coeff[1]
-  K = coeff[2]
-  M = coeff[3]
-  Q = coeff[4]
-  # likelihood for yest - oxygen isotope data normal distributed
-  ll1 <- sum(log(2/sigma)+dnorm((yest-mu)/sigma,log=T)+pnorm(lambda*(yest-mu)/sigma,log=T))
-
-
-  # likelihood for yest - other PDFs
-  # likelihood for
-  #ll1b <- sum(dunif(yest[1],20,40, log = TRUE),
-  #            dnorm(yest[6],6,5, log = TRUE))
-  pred = A + max(c(K-A,0))/((1+(exp(Q*(x-M)))))
-  ll2 <- sum(dnorm(yest, mean = pred, sd = sdy, log = TRUE))
-  return(c(ll2+ll1))
-}
-
-
-logprior <- function(coeff) {
-  coeff = unlist(coeff)
-  return(sum(c(
-    dunif(coeff[1], -4, coeff[2], log = TRUE),
-    dunif(coeff[2], coeff[1], 40, log = TRUE),
-    dnorm(coeff[3], 45, 10, log = TRUE),
-    dlnorm(coeff[4], -2.2, 0.8, log = TRUE))))
-}
+# gradient <- function(x, coeff, sdy) { # sigma is labelled "sdy"
+#   coeff = unlist(coeff)
+#   A = coeff[1]
+#   K = coeff[2]
+#   M = coeff[3]
+#   Q = coeff[4]
+#   return(A + max(c(K-A,0))/((1+(exp(Q*(x-M))))) + rnorm(length(x),0,sdy))
+# }
+#
+#
+# loglik_norm <- function(x, yest, ymean, sdyest, coeff, sdy) {
+#   # extract regression coefficients
+#   coeff = unlist(coeff)
+#   A = coeff[1]
+#   K = coeff[2]
+#   M = coeff[3]
+#   Q = coeff[4]
+#   # likelihood for yest - oxygen isotope data normal distributed
+#   ll1 <- sum(dnorm(yest, ymean, sdyest,log=TRUE),na.rm=T)
+#
+#   # likelihood for yest - other PDFs
+#   # likelihood for
+#   #ll1b <- sum(dunif(yest[1],20,40, log = TRUE),
+#   #            dnorm(yest[6],6,5, log = TRUE))
+#   pred = A + max(c(K-A,0))/((1+(exp(Q*(x-M)))))
+#   ll2 <- sum(dnorm(yest, mean = pred, sd = sdy, log = TRUE))
+#   return(c(ll2+ll1))
+# }
+#
+#
+# loglik_skew <- function(x, yest, mu, sigma, lambda, coeff, sdy) {
+#   # extract regression coefficients
+#   coeff = unlist(coeff)
+#   A = coeff[1]
+#   K = coeff[2]
+#   M = coeff[3]
+#   Q = coeff[4]
+#   # likelihood for yest - oxygen isotope data normal distributed
+#   ll1 <- sum(log(2/sigma)+dnorm((yest-mu)/sigma,log=T)+pnorm(lambda*(yest-mu)/sigma,log=T))
+#
+#
+#   # likelihood for yest - other PDFs
+#   # likelihood for
+#   #ll1b <- sum(dunif(yest[1],20,40, log = TRUE),
+#   #            dnorm(yest[6],6,5, log = TRUE))
+#   pred = A + max(c(K-A,0))/((1+(exp(Q*(x-M)))))
+#   ll2 <- sum(dnorm(yest, mean = pred, sd = sdy, log = TRUE))
+#   return(c(ll2+ll1))
+# }
+#
+#
+# logprior <- function(coeff) {
+#   coeff = unlist(coeff)
+#   return(sum(c(
+#     dunif(coeff[1], -4, coeff[2], log = TRUE),
+#     dunif(coeff[2], coeff[1], 40, log = TRUE),
+#     dnorm(coeff[3], 45, 10, log = TRUE),
+#     dlnorm(coeff[4], -2.2, 0.8, log = TRUE))))
+# }
 
 
 ##############
@@ -121,6 +121,7 @@ logprior <- function(coeff) {
     dlnorm(coeff[4], -2.2, 0.8, log = TRUE))))
 }
 
+# function to generate truncated normal
 dtnorm <- function(x,lower,upper,mean,sd, log = FALSE) {
   ret <- numeric(length(x))
   ret[x < lower | x > upper] <- if (log)
@@ -149,33 +150,33 @@ logposterior_norm <- function(x, yest, ymean, sdyest, coeff, sdy){
 logposterior_skew <- function(x, yest, mu, sigma, lambda, coeff, sdy){
   return (loglik_skew(x, yest, mu, sigma, lambda, coeff, sdy))
 }
-
-logpostold_lik_wrapper <- function(n_p,n_norm,n_skew) {
-  out <- 0
-  if(n_p != 0) out <- out + logposterior_norm(x = x[n_p_ind], yest = yestimate[i,n_p_ind], ymean = yobs_mean,
-                                              sdyest = sdyest[i,], coeff = coefficients[i-1,],
-                                              sdy = sdy[i])
-  if(n_norm != 0) out <- out + logposterior_norm(x = x[n_norm_ind], yest = yestimate[i,n_norm_ind], ymean = ynorm_mu,
-                                                 sdyest = ynorm_sd, coeff = coefficients[i-1,],
-                                                 sdy = sdy[i])
-  if(n_skew != 0) out <- out +  logposterior_skew(x = x[n_skew_ind], yest = yestimate[i,n_skew_ind], mu = yskew_mu, yskew_sigma, yskew_lambda,
-                                                  coeff = coefficients[i-1,], sdy[i])
-  return(out)
-}
-
-logpostnew_lik_wrapper <- function(n_p,n_norm,n_skew) {
-  out <- 0
-  if(n_p != 0) out <- out + logposterior_norm(x = x[n_p_ind], yest = yestimate[i,n_p_ind], ymean = yobs_mean,
-                                              sdyest = sdyest[i,], coeff = proposal_coeff,
-                                              sdy = sdy[i])
-  if(n_norm != 0) out <- out + logposterior_norm(x = x[n_norm_ind], yest = yestimate[i,n_norm_ind], ymean = ynorm_mu,
-                                                 sdyest = ynorm_sd, coeff = proposal_coeff,
-                                                 sdy = sdy[i])
-  if(n_skew != 0) out <- out +  logposterior_skew(x = x[n_skew_ind], yest = yestimate[i,n_skew_ind], mu = yskew_mu, yskew_sigma, yskew_lambda,
-                                                  coeff = proposal_coeff, sdy[i])
-  return(out)
-
-}
+#
+# logpostold_lik_wrapper <- function(n_p,n_norm,n_skew) {
+#   out <- 0
+#   if(n_p != 0) out <- out + logposterior_norm(x = x[n_p_ind], yest = yestimate[i,n_p_ind], ymean = yobs_mean,
+#                                               sdyest = sdyest[i,], coeff = coefficients[i-1,],
+#                                               sdy = sdy[i])
+#   if(n_norm != 0) out <- out + logposterior_norm(x = x[n_norm_ind], yest = yestimate[i,n_norm_ind], ymean = ynorm_mu,
+#                                                  sdyest = ynorm_sd, coeff = coefficients[i-1,],
+#                                                  sdy = sdy[i])
+#   if(n_skew != 0) out <- out +  logposterior_skew(x = x[n_skew_ind], yest = yestimate[i,n_skew_ind], mu = yskew_mu, yskew_sigma, yskew_lambda,
+#                                                   coeff = coefficients[i-1,], sdy[i])
+#   return(out)
+# }
+#
+# logpostnew_lik_wrapper <- function(n_p,n_norm,n_skew) {
+#   out <- 0
+#   if(n_p != 0) out <- out + logposterior_norm(x = x[n_p_ind], yest = yestimate[i,n_p_ind], ymean = yobs_mean,
+#                                               sdyest = sdyest[i,], coeff = proposal_coeff,
+#                                               sdy = sdy[i])
+#   if(n_norm != 0) out <- out + logposterior_norm(x = x[n_norm_ind], yest = yestimate[i,n_norm_ind], ymean = ynorm_mu,
+#                                                  sdyest = ynorm_sd, coeff = proposal_coeff,
+#                                                  sdy = sdy[i])
+#   if(n_skew != 0) out <- out +  logposterior_skew(x = x[n_skew_ind], yest = yestimate[i,n_skew_ind], mu = yskew_mu, yskew_sigma, yskew_lambda,
+#                                                   coeff = proposal_coeff, sdy[i])
+#   return(out)
+#
+# }
 
 
 MH_propose_coeff <- function(coeff, prop_sd_coeff){
