@@ -123,15 +123,17 @@ MH_propose_coeff_logQ <- function(coeff, prop_sd_coeff){
   return(rnorm(4,mean = c(coeff[1:3],log(coeff[4])), sd= prop_sd_coeff))
 }
 
-MH_propose_multi <- function(coeff,proposal_cov) {
+MH_propose_multi <- function(nprop,coeff,proposal_cov) {
 
 
-  mvnfast::rmvn(n = 1, mu = 0.95*c(coeff[1:3],log(coeff[4])),
+  mvnfast::rmvn(n = nprop, mu = 0.95*c(coeff[1:3],log(coeff[4])),
                                   sigma = 2.4/sqrt(4)*proposal_cov)+
-    rnorm(n = 4, mean = 0.05*c(coeff[1:3],log(coeff[4])),
+    rnorm(n = 4*nprop, mean = 0.05*c(coeff[1:3],log(coeff[4])),
           sd = 0.001)
 
 }
+
+
 
 #MH_propose_yest <- function(yest, prop_sd_yest){
 #  return(mvnfast::rmvn(1,mu = yest, sigma = prop_sd_yest))
@@ -251,6 +253,8 @@ run_MCMC <- function(nIter = 1000, obsmat = NULL, distrmat = NULL, coeff_inits, 
 
   proposal_factor <- 1 # to adjust acceptance rate
 
+  #proposal_innovation <- array(NA_real_,  dim = c(nIter-adapt_sd,4))
+
   if(n_p != 0) {
     #### Investigate these: Need to be broad for single obser
     A_sdyest = 1 # parameter for the prior on the inverse gamma distribution of sdyest
@@ -337,8 +341,8 @@ run_MCMC <- function(nIter = 1000, obsmat = NULL, distrmat = NULL, coeff_inits, 
     # Outgrowing the Procrustean Bed of Normality: The Utility of Bayesian Modeling for Asymmetrical Data Analysis
 
     ## 4. Metropolis-Hastings step to estimate the regression coefficients
-    proposal_coeff = MH_propose_multi(coefficients[i-1,],proposal_cov =  proposal_cov) # new proposed values
-
+    if(i <= adapt_sd) proposal_coeff = MH_propose_multi(1,coefficients[i-1,],proposal_cov =  proposal_cov) # new proposed values
+    if(i > adapt_sd) proposal_coeff = c(coefficients[i-1,1:3],log(coefficients[i-1,4])) + proposal_innovation[i-adapt_sd,]
     proposal_coeff[4] <- exp(proposal_coeff[4])
 
     if(any(proposal_coeff[4] <= 0) | i == 2) {
@@ -409,8 +413,11 @@ run_MCMC <- function(nIter = 1000, obsmat = NULL, distrmat = NULL, coeff_inits, 
       }
 
     }
-
-
+    # create matrix of proposal innovations as this is much faster than doing it anew at every it
+    if(i == adapt_sd) proposal_innovation <-   mvnfast::rmvn(n = nIter-adapt_sd, mu = rep(0,4),
+                                                             sigma = 2.4/sqrt(4)*proposal_cov)+
+      rnorm(n = 4*(nIter-adapt_sd), mean = rep(0,4),
+            sd = 0.001)
 
     #if(accept == 0) main = "rejected" else main = "accepted"
     #  plot(seq(0,90,0.1), gradient(seq(0,90,0.1), coefficients[i-1,],0), main = main,
@@ -427,6 +434,8 @@ run_MCMC <- function(nIter = 1000, obsmat = NULL, distrmat = NULL, coeff_inits, 
     # print(sdyest[i,])
     # print(sdy[i])
   } # end of the MCMC loop
+
+  rm(proposal_innovation) #delete matrix of proposal innovations to save memory
 
   ###  Function output
   output = list(data.frame(A = coefficients[,1],
@@ -511,7 +520,7 @@ yest_inits = rep(25,length(unique(obsmat$sample))+nrow(distrmat)) #c(30,25,20,15
 sdyest_inits = rep(2,length(unique(obsmat$sample)))
 
 
-nIter = 100000
+nIter = 30000
 sdy_init = 1
 
 system.time({ m3 <-  run_MCMC(nIter = nIter, obsmat = obsmat, distrmat = distrmat,
@@ -522,11 +531,11 @@ system.time({ m3 <-  run_MCMC(nIter = nIter, obsmat = obsmat, distrmat = distrma
 })
 
 
-system.time({ m5 <-  run_MCMC(nIter = nIter, obsmat = obsmat, distrmat = distrmat,
+profvis::profvis({system.time({ m10 <-  run_MCMC(nIter = nIter, obsmat = obsmat, distrmat = distrmat,
                               coeff_inits = coeff_inits,
                               sdy_init = sdy_init, yest_inits = yest_inits,
                               sdyest_inits = sdyest_inits)
-})
+})})
 
 burnin = 25000+1
 
@@ -593,10 +602,10 @@ sapply(1:np, function(a) points(c(m1$lat[a]+offset[a],m1$lat[a]+offset[a]),quant
 sapply(1:np, function(a) points(c(m1$lat[a]+offset[a],m1$lat[a]+offset[a]),quantile(m1[[2]][burnin:nIter,a], probs = c(0.125,0.875)), type = "l", col= rgb(1,0,0,0.5), lwd =3))
 sapply(1:np, function(a) points(c(m1$lat[a]+offset[a],m1$lat[a]+offset[a]),quantile(m1[[2]][burnin:nIter,a], probs = c(0.025,0.975)), type = "l", col= rgb(1,0,0,0.5), lwd =1))
 
-hist(m1[[1]]$Q[burnin:nIter], seq(0,1,0.02), col = rgb(1,0,0,0.25), add = F)
+hist(m6[[1]]$Q[burnin:nIter], seq(0,1,0.02), col = rgb(1,0,0,0.25), add = F)
 hist(m2[[1]]$Q[burnin:nIter], seq(0,1,0.01), col = rgb(0,0,1,0.25), add = T)
-hist(m3[[1]]$Q[burnin:nIter], seq(0,2,0.02), col = rgb(0,1,0,0.2), add = T)
-hist(m4[[1]]$Q[burnin:nIter], seq(0,5,0.02), col = rgb(0,0,1,0.25), add = T)
+hist(m10[[1]]$Q[burnin:nIter], seq(0,2,0.02), col = rgb(0,1,0,0.2), add = T)
+hist(m7[[1]]$Q[burnin:nIter], seq(0,5,0.02), col = rgb(0,0,1,0.25), add = T)
 
 mcmcse::multiESS(m5[[1]][burnin:nIter,1:4])
 mcmcse::multiESS(m4[[1]][burnin:nIter,1:4])
@@ -606,6 +615,6 @@ acf(m5[[1]]$A)
 acf(m4[[1]]$A)
 acf(m1.1[[1]]$A)
 
-plot(m5[[1]][55001:56500,1], m5[[1]][55001:56500,2], type = "o", pch = 19, col = rgb(0,0,0,0.2))
-points(m4[[1]][55001:56500,1], m4[[1]][55001:56500,2], type = "o", pch = 19, col = rgb(1,0,0,0.2))
-points(m1.1[[1]][55001:56500,1], m1.1[[1]][55001:56500,2], type = "o", pch = 19, col = rgb(0,1,0,0.2))
+plot(m5[[1]][55001:56500,1], m5[[1]][55001:56500,3], type = "o", pch = 19, col = rgb(0,0,0,0.2))
+points(m4[[1]][55001:56500,1], m4[[1]][55001:56500,3], type = "o", pch = 19, col = rgb(1,0,0,0.2))
+points(m1.1[[1]][55001:56500,1], m1.1[[1]][55001:56500,3], type = "o", pch = 19, col = rgb(0,1,0,0.2))
