@@ -221,7 +221,7 @@ run_MCMC <- function(nIter = 1000, obsmat = NULL, distrmat = NULL, coeff_inits, 
   sdy = rep(NA_real_,nIter) # set up vector to store sdy
   sdy[1] = sdy_init # intialise sdy
 
-
+  logpostold = 0
 
   x = NULL
   if(!is.null(obsmat)) {
@@ -504,7 +504,7 @@ yest_inits = rep(25,length(unique(obsmat$sample))+nrow(distrmat)) #c(30,25,20,15
 sdyest_inits = rep(2,length(unique(obsmat$sample)))
 
 
-nIter = 50000
+nIter = 100000
 sdy_init = 1
 
 system.time({ m1 <-  run_MCMC(nIter = nIter, obsmat = obsmat, distrmat = distrmat,
@@ -578,7 +578,7 @@ sapply(1:np, function(a) points(c(m1$lat[a]+offset[a],m1$lat[a]+offset[a]),quant
 sapply(1:np, function(a) points(c(m1$lat[a]+offset[a],m1$lat[a]+offset[a]),quantile(m1[[2]][burnin:nIter,a], probs = c(0.125,0.875)), type = "l", col= rgb(1,0,0,0.5), lwd =3))
 sapply(1:np, function(a) points(c(m1$lat[a]+offset[a],m1$lat[a]+offset[a]),quantile(m1[[2]][burnin:nIter,a], probs = c(0.025,0.975)), type = "l", col= rgb(1,0,0,0.5), lwd =1))
 
-
+hist(m1[[1]]$Q[burnin:nIter], seq(0,1,0.01), col = rgb(1,0,0,0.2))
 
 ####################################################################
 ####
