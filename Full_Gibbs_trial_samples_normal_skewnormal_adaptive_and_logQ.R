@@ -184,7 +184,8 @@ error_polygon <- function(x,en,ep,color) {
 #
 # Main MCMCM function
 run_MCMC <- function(nIter = 1000, obsmat = NULL, distrmat = NULL, coeff_inits, sdy_init, yest_inits, sdyest_inits,
-                     proposal_var_inits = c(2,2,2,0.2), adapt_sd = floor(0.1 * nIter), adapt_sd_decay = max(floor(0.01*nIter),1), quiet = FALSE){
+                     proposal_var_inits = c(2,2,2,0.2), adapt_sd = floor(0.1 * nIter),
+                     adapt_sd_decay = max(floor(0.01*nIter),1), quiet = FALSE){
   ### Initialisation
   coefficients = array(dim = c(nIter,4)) # set up array to store coefficients
   coefficients[1,] = coeff_inits # initialise coefficients
@@ -397,12 +398,12 @@ run_MCMC <- function(nIter = 1000, obsmat = NULL, distrmat = NULL, coeff_inits, 
       weights = all_weights[(adapt_sd-i+1):adapt_sd]
       proposal_cov <- weighted_cov(cbind(coefficients[1:i,1:3],log(coefficients[1:i,4])),weights = weights)
       if(any(diag(proposal_cov)==0)) proposal_cov <- proposal_var_inits/i
-      if(i>2*floor(adapt_sd/10)) {
+      if(i %in% seq(2*floor(adapt_sd/10), adapt_sd, floor(adapt_sd/10))) {
         #
         if(mean(accept[(i-floor(adapt_sd/10)):i]) < 0.23) proposal_factor <- proposal_factor - 0.1*proposal_factor
         if(mean(accept[(i-floor(adapt_sd/10)):i]) > 0.45) proposal_factor <- proposal_factor + 0.1*proposal_factor
         proposal_cov <- proposal_cov * proposal_factor
-        while(any(eigen(proposal_cov)$values <= 0.0001)) {
+        while(any(eigen(proposal_cov)$values <= 0.000001)) {
           diag(proposal_cov) <- 1.25 * diag(proposal_cov)
         print(paste("stuck in while loop at it",i))}
       }
@@ -596,3 +597,15 @@ hist(m1[[1]]$Q[burnin:nIter], seq(0,1,0.02), col = rgb(1,0,0,0.25), add = F)
 hist(m2[[1]]$Q[burnin:nIter], seq(0,1,0.01), col = rgb(0,0,1,0.25), add = T)
 hist(m3[[1]]$Q[burnin:nIter], seq(0,2,0.02), col = rgb(0,1,0,0.2), add = T)
 hist(m4[[1]]$Q[burnin:nIter], seq(0,5,0.02), col = rgb(0,0,1,0.25), add = T)
+
+mcmcse::multiESS(m5[[1]][burnin:nIter,1:4])
+mcmcse::multiESS(m4[[1]][burnin:nIter,1:4])
+
+table(diff(m5[[1]]$A[25001:100000])==0)/75000
+acf(m5[[1]]$A)
+acf(m4[[1]]$A)
+acf(m1.1[[1]]$A)
+
+plot(m5[[1]][55001:56500,1], m5[[1]][55001:56500,2], type = "o", pch = 19, col = rgb(0,0,0,0.2))
+points(m4[[1]][55001:56500,1], m4[[1]][55001:56500,2], type = "o", pch = 19, col = rgb(1,0,0,0.2))
+points(m1.1[[1]][55001:56500,1], m1.1[[1]][55001:56500,2], type = "o", pch = 19, col = rgb(0,1,0,0.2))
