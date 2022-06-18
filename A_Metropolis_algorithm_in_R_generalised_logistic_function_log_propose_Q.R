@@ -36,13 +36,16 @@ logprior <- function(coeff) {
 }
 
 logposterior <- function(x, y, coeff, sdy){
-  return (loglik(x, y, coeff, sdy) + logprior(coeff) + 2*(coeff[4]))
+  return (loglik(x, y, coeff, sdy) + logprior(coeff)) # + 2*(coeff[4])
 }
 
-MH_propose <- function(coeff, proposal_sd){
+MH_propose_logQ <- function(coeff, proposal_sd){
   return(rnorm(4,mean = c(coeff[1:3],log(coeff[4])), sd= proposal_sd))
 }
 
+MH_propose <- function(coeff, proposal_sd){
+  return(rnorm(4,mean = c(coeff[1:3],(coeff[4])), sd= proposal_sd))
+}
 
 
 
@@ -68,12 +71,14 @@ run_MCMC <- function(x, y, coeff_inits, sdy_init, nIter){
       1,shape_sdy,B_sdy+0.5*sum((y-gradient(x,coefficients[i-1,],0))^2)))
 
     ## 2. Metropolis-Hastings step to estimate the regression coefficients
-    proposal = MH_propose(coefficients[i-1,],proposal_sd =  c(.5,.5,.5,0.2)) # new proposed values
+    proposal = MH_propose(coefficients[i-1,],proposal_sd =  c(.75,.75,.75,0.25)) # new proposed values
     proposal[4] <- exp(proposal[4])
-    # if(any(proposal[4] <= 0)) HR = 0 else # Q needs to be >0
+    #if(any(proposal[4] <= 0)) HR = 0 else # Q needs to be >0
       # Hastings ratio of the proposal
       HR = exp(logposterior(x = x, y = y, coeff = proposal, sdy = sdy[i]) -
-                 logposterior(x = x, y = y, coeff = coefficients[i-1,], sdy = sdy[i]))
+                 logposterior(x = x, y = y, coeff = coefficients[i-1,], sdy = sdy[i]) +
+                 (-log(coefficients[i-1,4])) -
+                 (-log(proposal[4])))
     # accept proposal with probability = min(HR,1)
     if (runif(1) < HR){
       coefficients[i,] = proposal
@@ -93,19 +98,55 @@ run_MCMC <- function(x, y, coeff_inits, sdy_init, nIter){
 }
 
 ### Taking samples
-set.seed(10)
-sample_lat <- runif(10,0,90)
+set.seed(1)
+sample_lat <- seq(0,90,5)#runif(10,0,90)
 sample_data <- data.frame(
   x = sample_lat,
-  y = gradient(x = sample_lat, coeff = c(-2.0, 28, 41, 0.1), sd = 2))
+  y = gradient(x = sample_lat, coeff = c(-2.0, 28, 41, 0.5), sd = 2))
 
+set.seed(5)
 ### Analysis
-nIter <- 100000
-print(system.time({m6 <- run_MCMC(x = sample_data$x, y = sample_data$y,
+nIter <- 500000
+print(system.time({m20 <- run_MCMC(x = sample_data$x, y = sample_data$y,
                                  coeff_inits = c(0,30,45,0.2), sdy_init = 4, nIter = nIter)}))
 
 #m1 <- m
-m <- m4
+m <- m1
+m <- m2
+m <- m3
+
+hist(m1$Q,breaks = seq(0,0.4,0.004),col = rgb(0,0,1,0.33))
+hist(m2$Q,breaks = seq(0,0.4,0.004),col = rgb(1,0,0,0.33), add = T)
+hist(m3$Q,breaks = seq(0,0.4,0.004),col = rgb(0,1,0,0.33), add = T)
+
+hist(m4$Q,breaks = seq(0,0.4,0.004),col = rgb(0,0,1,0.33))
+hist(m5$Q,breaks = seq(0,0.4,0.004),col = rgb(1,0,0,0.33), add = F)
+hist(m6$Q,breaks = seq(0,0.4,0.004),col = rgb(0,1,0,0.33), add = T)
+
+
+hist(m7$Q,breaks = seq(0,0.4,0.004),col = rgb(0,1,0,0.33), add = T)
+
+
+hist(m8$Q,breaks = seq(0,0.4,0.004),col = rgb(1,0,0,0.33), add = F)
+hist(m9$Q,breaks = seq(0,0.4,0.004),col = rgb(0,0,1,0.33), add = T)
+hist(m10$Q,breaks = seq(0,0.4,0.004),col = rgb(0,1,0,0.33), add = T)
+hist(m11$Q,breaks = seq(0,0.4,0.004),col = rgb(1,0.5,0,0.33), add = F)
+
+
+hist(m12l$Q,breaks = seq(0,8,0.02),col = rgb(1,0,0,0.33), add = F, xlim = c(0,2))
+hist(m13l$Q,breaks = seq(0,10,0.02),col = rgb(1,1,0,0.33), add = T, xlim = c(0,2))
+hist(m16l$Q,breaks = seq(0,12,0.02),col = rgb(1,0,1,0.33), add = F, xlim = c(0,2))
+
+hist(m14$Q,breaks = seq(0,10,0.02),col = rgb(0,0,1,0.33), add = T, xlim = c(0,2))
+hist(m15$Q,breaks = seq(0,10,0.02),col = rgb(0,1,1,0.33), add = T, xlim = c(0,2))
+hist(m16$Q,breaks = seq(0,10,0.02),col = rgb(0,1,0,0.33), add = T, xlim = c(0,2))
+
+hist(m17l$Q,breaks = seq(0,8,0.02),col = rgb(1,0,0,0.33), add = F, xlim = c(0,2))
+hist(m18l$Q,breaks = seq(0,8,0.02),col = rgb(1,1,0,0.33), add = T, xlim = c(0,2))
+
+hist(m19$Q,breaks = seq(0,8,0.02),col = rgb(0,0,1,0.33), add = T, xlim = c(0,2))
+hist(m20$Q,breaks = seq(0,8,0.02),col = rgb(0,1,0.5,0.33), add = T, xlim = c(0,2))
+
 ######################################################
 ######################################################
 ### PLOTS
@@ -126,6 +167,9 @@ plot(latitude, temperature, type = "l", lwd = 2, ylim = c(-4.5,32), xlab = expre
      xlim = c(0,90), main = "sample data", lty= 2, cex.main = 1)
 points(sample_data$x, sample_data$y,  pch = 19, cex = 1.2, col = rgb(0,0,0,0.6), xpd = T)
 axis(2,seq(-5,30,5),c(NA,0,NA,10,NA,20,NA,30))
+
+
+
 
 ######################################################
 ## Posterior checks
