@@ -5,20 +5,26 @@
 ##
 ## Create test data
 ##
-cycle_pos <- cumsum(c(0,50,50,30,30,50,50,50,20,20,20,20,20,20,20,30,30,30))
-delta_known <- 2
+cycle_pos <- cumsum(c(0,50,20,20,20,20,50,30,30,30,30,30,30,30,50,50,50,20,20,
+                      20,20,20,20,20,30,30,30,40,40,40,40,40,40))
+delta_known <- 0.5
 alpha_known <- 540
 
-dates <- data.frame(
-  height = c(cycle_pos[2]+0.5*diff(cycle_pos)[2],
-             cycle_pos[6]+0.2*diff(cycle_pos)[6],
-             cycle_pos[10]+0*diff(cycle_pos)[10]),
-  mean = c(alpha_known-(2.5-1)*delta_known,
-           alpha_known-(6.2-1)*delta_known,
-           alpha_known-(10-1)*delta_known),
-  sd = c(0.25,0.25,0.5))
+posd1 <- 3
+posd2 <- 10
+posd3 <-20
 
-points_of_interest <- 150
+dates <- data.frame(
+  height = c(cycle_pos[posd1]+0.5*diff(cycle_pos)[posd1],
+             cycle_pos[posd2]+0.2*diff(cycle_pos)[posd2],
+             cycle_pos[posd3]+0*diff(cycle_pos)[posd3]),
+  mean = c(alpha_known-(posd1-0.5)*delta_known,
+           alpha_known-(posd2-0.5)*delta_known,
+           alpha_known-(posd3-0.5)*delta_known),
+  sd = c(.5,.5,.75))
+
+points_of_interest <- 400
+
 
 ##
 ## Plot test data
@@ -33,11 +39,11 @@ sapply(seq_len(nrow(dates)), function(x) points(rep(dates$height[x],2),
 #       pch = 8, col = "red", lwd = 1)
 # cycles
 for(i in 1:(length(cycle_pos)-1))
-  points(seq(cycle_pos[i],cycle_pos[i+1],0.02),alpha_known+1+2*sin(
+  points(seq(cycle_pos[i],cycle_pos[i+1],0.02),alpha_known+1+1*sin(
     (0.25*diff(cycle_pos)[i]+seq(0,diff(cycle_pos)[i],0.02))
     *2*pi/diff(cycle_pos)[i]),
     type = "l", col = "black")
-points(cycle_pos,rep(543,length(cycle_pos)),pch = 3, cex = 0.8)
+points(cycle_pos,rep(542,length(cycle_pos)),pch = 3, cex = 0.8)
 
 ##
 ## define age model
