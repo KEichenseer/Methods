@@ -12,7 +12,7 @@ alpha_known <- 540
 
 posd1 <- 3
 posd2 <- 10
-posd3 <-20
+posd3 <- 20
 
 dates <- data.frame(
   height = c(cycle_pos[posd1]+0.5*diff(cycle_pos)[posd1],
@@ -73,6 +73,7 @@ age_model <- function(n_iter,dates,cycle_pos,
   alpha[1] = alpha_init
   delta[1] = delta_init
 
+  # calculate age of dates based on alpha and delta
   date_age_new <- rep(NA_real_,n_dates)
   for(d in seq_len(n_dates)) {
     date_age_new[d] <- alpha[1] - delta[1]*date_cycle_pos[d]
@@ -118,7 +119,7 @@ m1 <- age_model(n_iter = n_iter,dates = dates, cycle_pos = cycle_pos)
 ##
 ## Assess model output
 ##
-assess_posterior = FALSE
+assess_posterior = TRUE
 if(assess_posterior) {
 # assess chains
   par(mfrow = c(2,1), mar = c(4.25,4.25,1,1))
@@ -126,7 +127,7 @@ plot(m1$alpha)
 plot(m1$delta)
 # cross plot
 par(mfrow = c(1,1))
-plot(m1)
+plot(m1[2000:25000,])
 }
 
 ##
@@ -156,9 +157,12 @@ calc_age <- function(heights, cycle_pos, alpha, delta) {
 # add posterior age estimate of point of interest
 burn_in <- 0.1*n_iter
 
+# calculate ages for point of interest for every iteration after burnin
 pos1 <- calc_age(heights = points_of_interest,cycle_pos = cycle_pos, alpha = m1$alpha[burn_in:n_iter],
                  delta = m1$delta[burn_in:n_iter])
+# plot mean age
 points(points_of_interest,apply(pos1,2,mean), col = "red", lwd = 2, pch = 1, cex = 1.3)
+# plot 95% credibility interval of age
 sapply(seq_len(length(points_of_interest)), function(x) points(
   rep(points_of_interest[x],2),
   apply(pos1,2,function(x) quantile(x, probs = c(0.025,0.975))),
