@@ -1,0 +1,7 @@
+Getting Pystan installed is an absolute pain. I've already lost 90 minutes. I didn't realise on
+windows I needed to install C++ toolchain first. Trying that now.
+
+More errors. After 2 hours I give up.
+
+Somehow it doesn't seem to like the c++ compiler. Need to try again another time. Thus far I've had only severe problems with Stan, both Stan for R at uni, and Pystan here. I think it's good after all that I didn't build my program based on Stan. Difficult to get people to 
+use it if the installation is so ridiculously difficult.
